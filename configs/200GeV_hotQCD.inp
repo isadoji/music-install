@@ -1,0 +1,73 @@
+###################################
+# Au+Au 200 GeV — hotQCD EOS (default)
+###################################
+echo_level  1
+mode 4
+
+###################################
+# initial conditions
+###################################
+Initial_profile 9
+initialize_with_entropy 0
+Initial_Distribution_input_filename INITIAL_FILE
+s_factor 0.043                  # reproduce pi+K+p hadrónico = 518 (PHENIX 0-5%, ~680 total - 24% e+μ)
+Eta_plateau_size 20.
+Eta_fall_off 0.7
+
+#######################################
+# hydrodynamic evolution
+#######################################
+boost_invariant  1
+Initial_time_tau_0 0.4
+Total_evolution_time_tau 30.
+Delta_Tau 0.005
+Eta_grid_size 14.0
+Grid_size_in_eta 1
+X_grid_size_in_fm 20.0
+Y_grid_size_in_fm 20.0
+Grid_size_in_y 200
+Grid_size_in_x 200
+
+EOS_to_use 9
+number_of_particles_to_include 320 # todas las resonancias del HRG para decaimientos completos
+min_pt 0.01                        # avoid pt=0: Rap(η,0,m)=0 ∀η → GSL crash en flow calculation
+
+# viscosity
+Viscosity_Flag_Yes_1_No_0 1
+Include_Shear_Visc_Yes_1_No_0 1
+Shear_to_S_ratio 0.12
+T_dependent_Shear_to_S_ratio  0
+Include_Bulk_Visc_Yes_1_No_0 1
+T_dependent_Bulk_to_S_ratio 8
+Include_second_order_terms 1
+Include_Rhob_Yes_1_No_0 0
+turn_on_baryon_diffusion 0
+kappa_coefficient 0.0
+
+# evolution output
+output_evolution_data 0
+output_movie_flag 0
+output_evolution_T_cut 0.145
+outputBinaryEvolution  1
+output_evolution_every_N_eta  1
+output_evolution_every_N_y  2
+output_evolution_every_N_x  2
+output_evolution_every_N_timesteps  10
+
+###########################################
+# freeze-out
+###########################################
+Do_FreezeOut_Yes_1_No_0 1
+Do_FreezeOut_lowtemp 1
+freeze_out_method 4
+freeze_surface_in_binary 1
+average_surface_over_this_many_time_steps 10
+freeze_Ncell_x_step 1
+freeze_Ncell_eta_step 1
+freeze_eps_flag 0
+N_freeze_out 1
+eps_freeze_max 0.18
+eps_freeze_min 0.18
+use_eps_for_freeze_out 1
+
+EndOfData
