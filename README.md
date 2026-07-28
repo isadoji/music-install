@@ -143,6 +143,41 @@ de forma físicamente consistente. **No validado todavía:** los modos 3/4
 (espectros térmicos y decaimientos) con `EOS_to_use 14` — probablemente
 funcionen igual que con hotQCD, pero no se ha corrido esa parte.
 
+### ¿Cuándo poner μ_B ≠ 0? (`Include_Rhob_Yes_1_No_0`)
+
+Si en el futuro se corren otras especies y/o energías, el criterio para
+decidir `Include_Rhob_Yes_1_No_0` no es "por defecto" sino que depende de
+la energía de colisión:
+
+- **Energías altas (200 GeV y más, ej. Au+Au/Pb+Pb top RHIC/LHC):**
+  dejar `Include_Rhob_Yes_1_No_0 0`. La transparencia bariónica es casi
+  total (los núcleos se atraviesan), el μ_B a midrapidity es pequeño
+  (~20-25 MeV según extracciones de razones p/p̄ de STAR/PHENIX), y la
+  condición inicial estándar ahí (IP-Glasma boost-invariante, §3) **no
+  trae corriente bariónica neta** — solo densidad de energía. Prender la
+  bandera sin una IC que aporte bariones no serviría de nada (μ_B
+  seguiría siendo 0 en la práctica); para tener μ_B real a estas energías
+  haría falta además una IC 3D con "dynamical initialization"/stopping
+  (ej. 3dMCGlauber), no solo el flag.
+- **Energías bajas (régimen NICA/BES, ej. Bi+Bi 9 GeV, Au+Au ≲20 GeV):**
+  usar `Include_Rhob_Yes_1_No_0 1` — **obligatorio**. El frenado
+  bariónico es enorme y el sistema queda bariónicamente denso (μ_B
+  finito, del orden de cientos de MeV), que es justo lo que estas
+  energías están pensadas para explorar. Esto solo tiene sentido físico
+  si además:
+  - la IC es 3D con bariones netos (3dMCGlauber, `Initial_profile 13`,
+    como en esta sección), y
+  - la EOS depende de μ_B (`EOS_to_use 14`, `neos_bqs`, o equivalente —
+    **no** usar una EOS a μ_B=0 como `EOS_to_use 2`/hotQCD con el flag
+    prendido, sería inconsistente).
+
+  `turn_on_baryon_diffusion 0` (como está en `BiBi_9GeV.inp`) es válido
+  como primera aproximación (evolución bariónica ideal, sin difusión). Si
+  más adelante se quiere afinar la forma de la distribución de bariones
+  netos en rapidez (ej. comparar contra el pico de protones netos de STAR
+  BES), ese es el siguiente parámetro a activar, con un
+  `kappa_coefficient` no nulo.
+
 ---
 
 ## 5. Correr en paralelo (cluster SLURM)
