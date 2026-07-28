@@ -25,7 +25,6 @@ F_PARTICLE_INFO = RUN_DIR / 'FparticleInformation.dat'
 F_SPECTRA_FILE  = RUN_DIR / 'FyptphiSpectra.dat'
 
 PHENIX_DNCH_DETA = 680.0
-DECAY_FACTOR     = 1.4
 
 SPECIES = [
     ( 211, r'$\pi^+$',   'tab:blue',   '-'),
@@ -65,6 +64,19 @@ def read_particle_info(fname):
     return particles
 
 
+def read_s_factor(run_dir):
+    """Lee s_factor del music_input real usado en la corrida (lo escribe
+    run_music.sh/slurm_music.sh en cada modo). None si no se encuentra."""
+    music_input = run_dir / 'music_input'
+    if not music_input.exists():
+        return None
+    with open(music_input) as f:
+        for line in f:
+            if line.strip().startswith('s_factor'):
+                return float(line.split()[1])
+    return None
+
+
 def read_spectra(fname, particles):
     data = np.fromfile(fname, sep=' ')
     spectra, offset = [], 0
@@ -85,6 +97,8 @@ def compute_dNdpT(spectrum, p, y_cut=0.5):
     dN_dpT = np.trapezoid(dN_deta_dpT[mask, :], eta[mask], axis=0)
     return pT, dN_dpT
 
+
+S_FACTOR = read_s_factor(RUN_DIR)
 
 # ── load thermal (mode 3) ────────────────────────────────────────────────────
 particles  = read_particle_info(PARTICLE_INFO)
@@ -130,18 +144,27 @@ print('-' * 65)
 print(f"{'Total ch.':8s}  {music_dnch_th:>15.1f}  {music_dnch_fd:>16.1f}")
 print()
 
-PHENIX_TH_EST = PHENIX_DNCH_DETA / DECAY_FACTOR
-print(f"PHENIX 0-5%  dN_ch/dη (medido):           {PHENIX_DNCH_DETA:.0f}")
-print(f"Objetivo térmico estimado  (÷ {DECAY_FACTOR}):      {PHENIX_TH_EST:.0f}")
+decay_factor = music_dnch_fd / music_dnch_th if music_dnch_th > 0 else float('nan')
+print(f"decay_factor medido (post-decaim. / térmico):    {decay_factor:.3f}")
 print()
-print(f"MUSIC térmico / objetivo   = {music_dnch_th / PHENIX_TH_EST:.3f}")
+
+if S_FACTOR is not None:
+    print(f"s_factor de esta corrida (leído de music_input): {S_FACTOR:.4f}")
+else:
+    print("ADVERTENCIA: no se encontró music_input en el run_dir — no se puede "
+          "reportar s_factor automáticamente ni el punto de calibración.")
+
+target_th = PHENIX_DNCH_DETA / decay_factor if decay_factor > 0 else float('nan')
+print(f"PHENIX 0-5%  dN_ch/dη (medido):                  {PHENIX_DNCH_DETA:.0f}")
+print(f"Objetivo térmico (÷ decay_factor medido):        {target_th:.1f}")
+print()
+print(f"MUSIC térmico / objetivo   = {music_dnch_th / target_th:.3f}")
 print(f"MUSIC +decaim. / PHENIX    = {music_dnch_fd / PHENIX_DNCH_DETA:.3f}")
 print()
 
-s_factor_actual = 0.014
-s_factor_nuevo = s_factor_actual * (PHENIX_TH_EST / music_dnch_th) ** (4/3)
-print(f"s_factor actual:            {s_factor_actual:.4f}")
-print(f"s_factor sugerido (s^3/4):  {s_factor_nuevo:.4f}")
+if S_FACTOR is not None:
+    print("Punto de calibración para s_factor_calibrate.py:")
+    print(f"  --decay-factor {decay_factor:.3f} --points {S_FACTOR}:{music_dnch_th:.1f}")
 
 # ── plot: thermal vs post-decay ───────────────────────────────────────────────
 fig, axes = plt.subplots(1, 3, figsize=(18, 6))
@@ -168,7 +191,8 @@ for pdg_list, title, ax in panels:
     ax.set_yscale('log')
     ax.set_xlabel(r'$p_T$ [GeV/c]', fontsize=12)
     ax.set_ylabel(r'$\frac{1}{2\pi p_T}\frac{dN}{dp_T dy}$  [GeV$^{-2}$]', fontsize=11)
-    ax.set_title(f'{title} — Au+Au 200 GeV  (s_factor={s_factor_actual})', fontsize=11)
+    s_factor_label = f'{S_FACTOR:.4f}' if S_FACTOR is not None else '?'
+    ax.set_title(f'{title} — {RUN_DIR.name}  (s_factor={s_factor_label})', fontsize=11)
     ax.set_xlim(0, 3)
     ax.legend(fontsize=9)
     ax.grid(True, which='both', alpha=0.3)
