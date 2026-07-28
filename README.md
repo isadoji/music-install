@@ -213,9 +213,24 @@ python3 ptdist.py runs/mi_corrida
 ```
 
 Imprime una tabla de `dN/dy` térmico vs. con decaimientos para π±, K±, p,
-p̄, el `dN_ch/dη` total comparado contra PHENIX 0-5% (680), y un
-`s_factor` sugerido si el rendimiento no coincide. Guarda además una
-gráfica en `runs/mi_corrida/ptdist_thermal_vs_decay.png`.
+p̄, el `dN_ch/dη` total comparado contra PHENIX 0-5% (680), el
+`decay_factor` medido de esa corrida (post-decaimiento / térmico, no un
+valor asumido), y el `s_factor` real usado (leído automáticamente de
+`runs/mi_corrida/music_input`, no hay que pasarlo a mano). Guarda además
+una gráfica en `runs/mi_corrida/ptdist_thermal_vs_decay.png`.
+
+Al final imprime el punto de calibración ya formateado para
+`s_factor_calibrate.py` (§7), listo para copiar/pegar:
+
+```
+Punto de calibración para s_factor_calibrate.py:
+  --decay-factor 2.175 --points 0.045:454.0
+```
+
+**Sin `music_input` en el run_dir** (por ejemplo, si copiaste solo los
+`.dat` sin el resto de la corrida): `ptdist.py` avisa con una advertencia
+y omite el `s_factor` y el punto de calibración, pero el resto de la
+tabla se calcula igual.
 
 **Sin display (cluster por SSH sin X forwarding):** `ptdist.py` detecta
 automáticamente si no hay `$DISPLAY` y usa un backend no interactivo
@@ -254,6 +269,19 @@ predice y **no** se toca con `s_factor` son las formas: v_n, fluctuaciones
 evento a evento, dependencia con centralidad.
 
 ### Cómo se hace el ajuste: `s_factor_calibrate.py`
+
+0. **`decay_factor` se mide, no se asume.** Hace falta al menos una
+   corrida completa (modo 2→3→4) de la energía/EOS que te interesa para
+   medirlo — no se puede sacar de una corrida modo 2→3-only, porque
+   necesita los archivos `F*` post-decaimiento. Si ya tienes una corrida
+   completa, `python3 ptdist.py runs/mi_corrida` (§6) te da el
+   `decay_factor` y el primer punto de calibración ya listos. Si vas a
+   probar un sistema/energía nuevo (p. ej. Bi+Bi a 9 GeV, sin datos
+   experimentales de referencia), corre el pipeline completo una vez con
+   cualquier `s_factor` razonable de partida solo para medir su
+   `decay_factor` propio — no lo reutilices del run de otra energía/EOS
+   sin pensarlo (a μ_B finito la química de freeze-out es distinta, así
+   que el `decay_factor` de 200 GeV no aplica directo a NICA).
 
 1. Corre **solo modo 2→3** (sin modo 4, para no gastar tiempo en
    decaimientos) con un `s_factor` de prueba:
