@@ -1,0 +1,19 @@
+6,7c6,7
+<  FC = gfortran
+<  LD = $(FC)
+---
+> FC = gfortran
+> LD = $(FC)
+9,10c9
+< # define compiler- and linker flags.
+< FFLAGS	= -O3 -mcmodel=medium
+---
+> FFLAGS = -O3 -mcmodel=medium -std=legacy -fallow-argument-mismatch -ffixed-line-length-none
+11a11,17
+> 
+> #FC = gfortran
+> # LD = $(FC)
+> #
+> ## define compiler- and linker flags.
+> #FFLAGS = -O3 -mcmodel=medium
+> #LDFLAGS = -O3 -mcmodel=medium

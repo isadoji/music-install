@@ -1,0 +1,85 @@
+###################################
+# Bi+Bi sqrt(s_NN) = 9 GeV (NICA) — EOS finita en mu_B
+###################################
+# Condición inicial: 3dMCGlauber (Initial_profile 13), NO IP-Glasma.
+# Genera el archivo INITIAL_FILE con generate_bibi_ic.sh antes de correr:
+#
+#   ./install_3dmcglauber.sh
+#   ./generate_bibi_ic.sh initial/BiBi_9GeV_event0.dat
+#   ./run_music.sh mi_corrida configs/BiBi_9GeV.inp initial/BiBi_9GeV_event0.dat
+#
+# Resolución/tiempo de evolución reducidos a propósito para que una corrida
+# de validación (smoke test) termine en minutos en una máquina local, no
+# horas. Para una corrida de producción real, sube (comentarios abajo)
+# Grid_size_in_x/y, Grid_size_in_eta y Delta_Tau a valores tipo
+# example_inputfiles/3D_dynamical/music_input_mode_2 de MUSIC, y corre en
+# cluster (ver §4 del README, slurm_music.sh).
+###################################
+echo_level  1
+
+mode 2
+
+###################################
+# parameters for initial conditions
+###################################
+Initial_profile 13              # 3D MC-Glauber con inicialización dinámica
+initialize_with_entropy 0
+
+Initial_Distribution_input_filename INITIAL_FILE
+s_factor  1.0
+
+#######################################
+# parameters for hydrodynamic evolution
+#######################################
+boost_invariant  0               # obligatorio con Initial_profile 13
+Initial_time_tau_0 0.6
+Total_evolution_time_tau 6.0    # producción: 30.0 (más tiempo, cluster)
+Delta_Tau 0.02                  # producción: 0.01 o menor
+Eta_grid_size 12.8
+Grid_size_in_eta 32              # producción: 64
+X_grid_size_in_fm 20.0
+Y_grid_size_in_fm 20.0
+Grid_size_in_y 64                # producción: 192
+Grid_size_in_x 64                # producción: 192
+
+EOS_to_use 14                    # neos_bqs: EOS de red a mu_B finita, viene con MUSIC de fábrica
+
+number_of_particles_to_include 320 # todas las resonancias del HRG para decaimientos completos (modos 3/4)
+min_pt 0.01                        # avoid pt=0: Rap(η,0,m)=0 ∀η → GSL crash en flow calculation (modos 3/4)
+
+Viscosity_Flag_Yes_1_No_0 1
+Include_Shear_Visc_Yes_1_No_0 1
+Shear_to_S_ratio 0.08
+T_dependent_Shear_to_S_ratio  0
+Include_Bulk_Visc_Yes_1_No_0 0
+Include_second_order_terms 1
+Include_Rhob_Yes_1_No_0 1        # obligatorio para física a mu_B finito
+turn_on_baryon_diffusion 0
+kappa_coefficient 0.0
+
+output_evolution_data 0
+output_movie_flag 0
+output_evolution_T_cut 0.145
+outputBinaryEvolution  1
+output_evolution_every_N_eta  1
+output_evolution_every_N_y  2
+output_evolution_every_N_x  2
+output_evolution_every_N_timesteps  10
+
+###########################################
+# parameters for freeze out and Cooper-Frye
+###########################################
+Do_FreezeOut_Yes_1_No_0 1
+Do_FreezeOut_lowtemp 1
+freeze_out_method 4
+freeze_surface_in_binary 1
+average_surface_over_this_many_time_steps 20
+freeze_Ncell_x_step 2
+freeze_Ncell_eta_step 1
+freeze_eps_flag 0
+N_freeze_out 1
+eps_freeze_max 0.25
+eps_freeze_min 0.25
+use_eps_for_freeze_out 1
+
+EndOfData

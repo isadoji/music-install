@@ -1,0 +1,19 @@
+--- /storage/software/crab3/source_files/crab_main.cpp.bak_stack_arrays	2026-07-31 09:00:20.157275127 -0700
++++ /storage/software/crab3/source_files/crab_main.cpp	2026-07-31 09:00:20.178564408 -0700
+@@ -35,11 +35,11 @@
+ #endif
+ #ifdef MIXED_PAIRS_FOR_DENOM
+   int n_mixed_pairs=0,ii1,ii2;
+-  double ww[NMAX_FOR_MIXING];
+-  int iiread1[NMAX_FOR_MIXING];
+-  int iiread2[NMAX_FOR_MIXING];
+-  double pp1[NMAX_FOR_MIXING][4];
+-  double pp2[NMAX_FOR_MIXING][4];
++  double *ww = new double[NMAX_FOR_MIXING];
++  int *iiread1 = new int[NMAX_FOR_MIXING];
++  int *iiread2 = new int[NMAX_FOR_MIXING];
++  double (*pp1)[4] = new double[NMAX_FOR_MIXING][4];
++  double (*pp2)[4] = new double[NMAX_FOR_MIXING][4];
+ #endif
+   printf("How many pairs?\n");
+   scanf("%d",&nmax);

@@ -1,0 +1,16 @@
+diff --git a/src/freeze_pseudo.cpp b/src/freeze_pseudo.cpp
+index 198cb9d..42a5c8f 100644
+--- a/src/freeze_pseudo.cpp
++++ b/src/freeze_pseudo.cpp
+@@ -1174,9 +1174,9 @@ void Freeze::CooperFrye_pseudo(int particleSpectrumNumber, int mode,
+         compute_final_particle_spectra_and_vn(DATA);
+     } 
+ 
+-    // clean up
++    // skip free(particleList): ~2 GB deallocation hangs on large runs;
++    // the OS reclaims memory on process exit
+     delete[] partid;
+-    free(particleList);
+ }
+ 
+ 

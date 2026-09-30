@@ -1,0 +1,97 @@
+################################################################
+# 3dMCGlauber input — Bi+Bi sqrt(s_NN) = 9 GeV (NICA)
+# Genera las condiciones iniciales (strings_event_N.dat) que
+# MUSIC lee en Initial_profile 13.
+#
+# Requiere el parche de núcleo Bi (ver patches/3dmcglauber_add_bi_nucleus.patch,
+# aplicado automáticamente por install_3dmcglauber.sh).
+################################################################
+Projectile Bi                        # projectile nucleus name
+Target Bi                            # target nucleus name
+nucleon_configuration_from_file 0    # use nucleon configuration from file
+light_nucleus_option 0               # light nucleus configurations from different nuclear structure theory
+roots 9.                             # collision energy (GeV), sqrt(s_NN) = 9 GeV
+useQuarks 1                          # switch to use valence quarks
+Q2 1.                                # the scale when evaluating the pdf
+b_min 0.                             # minimum impact parameter (fm)
+b_max 2.                             # maximum impact parameter (fm) -- central collisions only
+NpartMin 1
+NpartMax 420
+randomRPflag 0                       # flag to randomize reactio plane angle
+use_roots_distribution 0             # The collision energy is sampled from a distribution
+                                     # Only for the gamma* + A collisions currenty
+use_roots_cut 0                      # Do the trigger for the gamma* + A collisions
+roots_low_cut 100.                   # The lower cut the center-of-mass energy for gamma* + A
+roots_up_cut 200.                    # The upper cut the center-of-mass energy for gamma* + A
+seed -1                              # random seed (-1: system)
+only_event_statistics 0              # flag to only output the event_summary file
+batch_density_output 0               # output density profile in batch
+batch_eccentricity_output 0          # output initial eccentricity ecc_n(eta_s) in batch
+batch_2Ddensity_output 0             # flag to output 2D and 3D density profiles in batch
+outputInitialEst 0                   # flag to output initial profile vs eta
+cache_tables 1                       # 1: use pre-generated tables for valence quark x
+                                     # 0: re-generate tables for valence quark x
+shadowing_factor 0.6                 # a shadowning factor for producing strings
+                                     # from multiple scatterings
+resetProjWS 1                        # flag to reset Woods-saxon parameter for the projectile nucleus
+resetTargWS 1                        # flag to reset Woods-saxon parameter for the target nucleus
+                                     # if collision is symmetric, use ProjWS params for the target nucleus
+N_sea_partons 1                      # Number of allowed soft partons. Default is 1.
+
+ProjWS_R 6.96
+ProjWS_a 0.537
+ProjWS_beta2 0.0
+ProjWS_beta3 0.0
+ProjWS_gamma 0.0
+ProjWS_da 0.2
+ProjWS_dR 0.5
+ProjPolarizationFlag 0               # 0: unpolarized; 1: longitudinal polarized; 2: transverse polarized
+TargPolarizationFlag 0
+Proj_polJz 0
+Targ_polJz 0
+d_min 0.9                            # the minimum distance between nucleon pairs [fm]
+
+ISBaryonInStringJunction 1           # 1: assign the whole baryon number to the string junction
+                                     # 0: assign fractional baryon numbers to valence quarks
+
+FSBaryonFluctStringBreaking 0        # 0: baryon number assumed to be at string end
+                                     # 1: baryon number transported along the string when it breaks
+lambdaB 1.0                          # parameter the controls the strength of the baryon junction stopping
+lambdaBs 0.0                         # the fraction of single-to-double junction stopping
+FSbaryonInStringProb 0.2             # the relative probility to put a baryon charge in the string
+                                     # rather than at the wounded nucleon remnant
+FSElectricQFluctStringBreaking 0     # 0: electric charge number assumed to be at string end
+                                     # 1: electric charge number transported assuming baryon junctions
+                                     #    (at smaller x) see arXiv:nucl-th/9602027
+lambdaQ 1.0                          # parameter the controls the strength of the electric charge junction stopping
+lambdaQs 0.0                         # the fraction of single-to-double junction stopping
+FSelectricChargeInStringProb 0.2     # the relative probility to put a electric charge in the string
+                                     # rather than at the wounded nucleon remnant
+
+BG 16.                               # Gaussian width square for sampling the valence quark positions (GeV^2)
+cenMin 0.
+cenMax 100.
+###############################################################
+# control parameters for string production
+###############################################################
+fluct_Nstrings_per_NN_collision 1        # fluctuate number of strings produced per NN collision
+QCD_string_production_mode 1             # string production mode
+                                         # 1: strings are produced randomly in the binary collision list
+                                         # 2: strings are produced at the last binary collision
+rapidity_loss_method 4                   # 1: LEXUS
+                                         # 2: parameterization
+                                         # 3: parameterization with logit-normal fluctuation
+                                         # 4: piecewise linear parameterization with logit-normal fluctuation
+remnant_energy_loss_fraction 0.5         # nucleon remnants energy loss fraction (fraction of string's y_loss) [0, 1]
+ylossParam4At2 1.70
+ylossParam4At4 2.00
+ylossParam4At6 2.20
+ylossParam4var 0.5
+evolve_QCD_string_mode 4                 # string evolution mode
+                                         # tau_form = tau_form_mean [fm]
+                                         # 1: deceleration with fixed (90%) rapidity loss (m/sigma = 1 fm, dtau = tau_form)
+                                         # 2: deceleration with LEXUS/parameterized rapidity loss (both dtau and sigma fluctuate)
+                                         # 3: deceleration with LEXUS/parameterized rapidity loss (m/sigma = 1 fm, dtau fluctuates)
+                                         # 4: deceleration with LEXUS/parameterized rapidity loss (dtau = tau_from, m/sigma fluctuates)
+tau_form_mean 0.5                        # the mean value for tau_form [fm]
+tau_form_fluct_gamma_beta 1.0            # fluctuation parameter for the gamma distribution

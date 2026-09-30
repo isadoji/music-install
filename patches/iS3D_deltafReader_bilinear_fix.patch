@@ -1,0 +1,17 @@
+--- /storage/software/iS3D/src/cpp/deltafReader.cpp	2026-07-29 10:39:04.520027898 -0700
++++ dbgsrc/deltafReader.cpp	2026-09-25 11:31:41.056574667 -0700
+@@ -401,10 +401,10 @@
+   //
+   //  f_LL    f_RL
+ 
+-  double f_LL = f_data[iTL][imuBL];
+-  double f_LR = f_data[iTL][imuBR];
+-  double f_RL = f_data[iTR][imuBL];
+-  double f_RR = f_data[iTR][imuBR];
++  double f_LL = f_data[imuBL][iTL];
++  double f_LR = f_data[imuBR][iTL];
++  double f_RL = f_data[imuBL][iTR];
++  double f_RR = f_data[imuBR][iTR];
+ 
+   return ((f_LL*(TR - T) + f_RL*(T - TL)) * (muBR - muB)  +  (f_LR*(TR - T) + f_RR*(T - TL)) * (muB - muBL)) / (dT * dmuB);
+ }

@@ -1,0 +1,15 @@
+--- a/crab.cpp
++++ b/crab.cpp
+@@ -25,7 +25,10 @@
+ /* The max. number of impact parameters */
+ #define NBMAX 1
+ /* The max. # of phasespace pt.s saved for one impact parameter */
+-#define NPHASEMAX 20000000
++/* Bumped from 20000000: campanas grandes (~1M eventos pooled) superan el
++ * limite original y crab_prinput.cpp aborta con "Increase NPHASEMAX in
++ * crab.cpp". Es un arreglo global de punteros (NBMAX=1), asi que el costo
++ * real de memoria crece solo con las entradas realmente usadas (BSS). */
++#define NPHASEMAX 200000000
+
+ #define MIXED_PAIRS_FOR_DENOM
+ #define NMAX_FOR_MIXING 200000

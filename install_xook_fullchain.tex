@@ -1,0 +1,470 @@
+\documentclass[11pt]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{siunitx}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage{xcolor}
+\usepackage[spanish]{babel}
+\decimalpoint % mantener 0.4 en vez de 0,4 (default de babel-spanish)
+\usepackage[utf8]{inputenc}
+\usepackage{enumitem}
+\usepackage{fancyvrb}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\title{Instalación desde cero de la cadena completa\\
+MUSIC $\to$ IP-Glasma/3dMCGlauber $\to$ iS3D $\to$ UrQMD $\to$ CRAB3/\texttt{be}\\
+\large Checklist con bugs corregidos, para un checkout nuevo en \texttt{xook}}
+\author{Bi+Bi correlations campaign}
+\date{2026-09-30}
+
+\begin{document}
+\maketitle
+
+\section{Alcance}
+
+Esta guía consolida en una sola lista, en orden de ejecución, todos los
+bugs de instalación/ejecución ya encontrados y corregidos a lo largo de las
+campañas Bi+Bi 5.8/7.7/9~GeV y AuAu 130/200~GeV (fuente:
+\texttt{music-install/README.md} \S8, y los README de
+\texttt{music/BiBi\_cascade\_*GeV/}), pensada para levantar la cadena
+completa en una máquina nueva (\texttt{xook}) sin redescubrir cada uno por
+separado. Cierra con un chequeo de sanidad end-to-end: reproducir el
+\emph{yield} de referencia Bi+Bi $\sqrt{s_{NN}}=5.8$~GeV medido con una
+cascada UrQMD standalone, que es el número contra el que se calibra toda la
+cadena hidro en esa energía.
+
+No repite el contenido físico/metodológico de los status reports ya
+existentes (\texttt{status\_report\_bibi58\_cascade.tex},
+\texttt{status\_urqmd\_crab3.tex}) — esta es una guía operativa de
+instalación.
+
+\section{Prerrequisitos del sistema}
+
+\begin{longtable}{L{4cm}L{5cm}L{6cm}}
+\toprule
+Paquete & Para qué & Instalación (Ubuntu/Debian) \\
+\midrule
+\endhead
+\texttt{g++} / \texttt{gfortran} & compilar MUSIC (C++) y UrQMD (Fortran legacy) & incluidos en \texttt{build-essential} + \texttt{gfortran} \\
+\texttt{cmake} & build de MUSIC & \texttt{sudo apt install cmake} \\
+\texttt{git} & clonar los repos & \texttt{sudo apt install git} \\
+\texttt{libgsl-dev} & interpolación (MUSIC) & \texttt{sudo apt install libgsl-dev} \\
+Python 3 + \texttt{numpy}/\texttt{numba}/\texttt{matplotlib} & yields, \texttt{be/} (C2/C3), plots & \texttt{sudo apt install python3 python3-numpy python3-matplotlib}, \texttt{pip install numba} \\
+\bottomrule
+\end{longtable}
+
+\textbf{Ojo con \texttt{libgsl-dev} específicamente}: si solo está la
+librería en tiempo de ejecución (\texttt{libgsl28}) pero no los headers,
+\texttt{cmake} compila MUSIC igual pero \emph{sin GSL y sin avisar con un
+error fuerte} — el binario queda incompleto y falla de formas confusas más
+adelante. Verificar esto explícitamente antes de compilar (o dejar que
+\texttt{install\_music.sh} lo haga).
+
+\section{MUSIC (core)}
+
+\begin{enumerate}[leftmargin=*]
+  \item Clonar e instalar:
+\begin{Verbatim}[fontsize=\small]
+git clone https://github.com/isadoji/music-install.git
+cd music-install
+./install_music.sh                    # $HOME/Software/MUSIC por defecto
+export MUSIC_DIR=$HOME/Software/MUSIC # agregar a .bashrc
+\end{Verbatim}
+  \item \textbf{Aplicar parches conocidos antes de dar por buena la
+  instalación} (\texttt{patches/}, vía \texttt{./apply\_music\_fixes.sh},
+  este repo):
+  \begin{itemize}
+    \item \texttt{freeze\_pseudo.patch} --- evita que \texttt{free(particleList)}
+      cuelgue en corridas grandes de \texttt{freeze\_pseudo.cpp} (bug de
+      limpieza de memoria de MUSIC upstream al final del freeze-out).
+    \item \texttt{read\_in\_parameters.patch} --- necesario si se va a usar
+      \texttt{EOS\_to\_use 20} (2DTExS): el \texttt{read\_in\_parameters.cpp}
+      de MUSIC stock solo acepta EOS $\le 14$ de fábrica y rechaza el input
+      sin este parche.
+  \end{itemize}
+  \item \textbf{2DTExS (\texttt{EOS\_to\_use 20}) queda fuera del alcance de
+  este repo}: es una EOS custom con su propio instalador
+  (\texttt{apply\_patches.sh} en el repo \texttt{music},
+  \texttt{music\_patches/}), no vendorizado aquí. Si se necesita, traer ese
+  script y la tabla \texttt{EoS2DTExS.dat} (\texttt{epos/src/MSt/}, un repo
+  \texttt{epos} al lado de \texttt{music\_patches/}, no dentro de él) desde
+  un checkout que ya los tenga --- en un mirror sin \texttt{epos/} al lado el
+  script solo imprime una advertencia y \textbf{no} copia la tabla, dejando
+  \texttt{EOS\_to\_use 20} roto en silencio.
+  \item Gotchas menores ya manejados automáticamente por los scripts de
+  \texttt{music-install} (no requieren acción, se listan para referencia):
+  directorio de \texttt{--output} de SLURM debe existir antes de
+  \texttt{sbatch} (\texttt{mkdir -p runs/<nombre>}); \texttt{min\_pt 0.01}
+  en vez de \texttt{0} exacto (evita el crash de GSL
+  \texttt{x values must be strictly increasing}); \texttt{./outputs} se
+  crea antes de modo~3; symlinks de \texttt{EOS/}/\texttt{tables/} en el
+  directorio de la corrida.
+\end{enumerate}
+
+\section{Condiciones iniciales --- IP-Glasma / 3dMCGlauber}
+
+Para Bi+Bi a energías bajas (NICA/BES: 5.8, 7.7, 9~GeV) usar
+\textbf{3dMCGlauber} (\texttt{Initial\_profile 13}), no IP-Glasma (que no
+tiene descripción nativa de bariones netos y no aplica a estas energías).
+
+\begin{enumerate}[leftmargin=*]
+  \item Instalar y parchar el núcleo de Bi-209 (no viene de fábrica):
+\begin{Verbatim}[fontsize=\small]
+./install_3dmcglauber.sh   # aplica patches/3dmcglauber_add_bi_nucleus.patch
+export GLAUBER_DIR=$HOME/Software/3dMCGlauber
+\end{Verbatim}
+  El parche agrega la parametrización de Bi-209 ($R=6.96$~fm, $a=0.537$~fm,
+  convención arXiv:2401.00619).
+  \item \textbf{Recortar la salida a 25 columnas} antes de pasarla a MUSIC:
+  la versión instalada de 3dMCGlauber escribe 30 columnas
+  (\texttt{strings\_event\_N.dat}, incluye campos de transporte de carga
+  eléctrica que MUSIC \texttt{public\_stable} todavía no lee). Sin el
+  recorte, MUSIC aborta con \texttt{the format of file...is wrong}. Usar
+  \texttt{generate\_bibi\_ic.sh} (ya hace el recorte), no la salida cruda de
+  \texttt{3dMCGlb.e} directamente.
+  \item \texttt{Include\_Rhob\_Yes\_1\_No\_0 1} es \textbf{obligatorio} a
+  estas energías (frenado bariónico grande, $\mu_B$ finito), junto con una
+  EOS que dependa de $\mu_B$ (\texttt{EOS\_to\_use 14}, \texttt{neos\_bqs},
+  o \texttt{EOS\_to\_use 20} si ya se aplicó el parche de 2DTExS de la
+  sección anterior) --- nunca combinar el flag con una EOS a $\mu_B=0$
+  (\texttt{EOS\_to\_use 2}/hotQCD), sería inconsistente.
+  \item Si se usa IP-Glasma en algún punto de comparación (p.\ ej.\ el
+  benchmark a 200~GeV): confirmar que existe
+  \texttt{nucleusConfigurations/<núcleo>.bin.in} \emph{antes} de correr ---
+  su ausencia no da un error claro, produce un \textbf{loop infinito} que
+  parece un OOM (consume 24--64--195~GB sin terminar). Con el archivo
+  presente el uso real es $\sim$1.2~GB, $\sim$8~min. Además fijar
+  \texttt{maxtime 0.4} explícitamente (\texttt{0.6} genera
+  \texttt{epsilon-u-Hydro-t0.6-0.dat}, no el \texttt{t0.4} que esperan los
+  scripts downstream); builds recientes además renombraron la salida a
+  \texttt{epsilon-u-Hydro-TauHydro-0.dat}.
+\end{enumerate}
+
+\section{iS3D --- muestreo de partículas sobre la superficie de freeze-out}
+
+\begin{enumerate}[leftmargin=*]
+  \item Clonar, parchar y compilar con \texttt{./install\_is3d.sh} (este
+  repo) --- ya aplica el parche crítico de abajo automáticamente.
+  \item \textbf{Aplicar el parche crítico de \texttt{deltafReader.cpp} antes
+  de usarlo para física con bariones.} Bug: \texttt{Deltaf\_Data::calculate\_
+  bilinear} indexa la tabla $\delta f$ como \texttt{f\_data[iT][imuB]}, pero
+  el loader la guarda como \texttt{f\_data[iB][iT]} (ejes transpuestos). Con
+  \texttt{include\_baryon 1}, \emph{todo} coeficiente $\delta f$ (F, G,
+  $\beta_{\rm bulk}$, $\beta_V$, $\beta_\pi$) se lee de la celda equivocada
+  ---puede además leer fuera de rango si \texttt{iT>80}. Síntoma:
+  $\bar p/p$, $\bar n/n$, $\bar\Lambda/\Lambda$ muy asimétricos incluso a
+  $\mu_B\approx0$ ($\bar p/p\sim2.4$ en vez de $\sim1$), K/$\pi$ inflado,
+  bariones sistemáticamente bajos. El camino \texttt{include\_baryon 0}
+  (spline cúbico) \textbf{no} está afectado.
+  \begin{itemize}
+    \item \textbf{Fix}: parchar \texttt{deltafReader.cpp} para indexar
+    \texttt{[iB][iT]} correctamente y recompilar ---
+    \texttt{patches/iS3D\_deltafReader\_bilinear\_fix.patch} en este repo,
+    aplicado automáticamente por \texttt{install\_is3d.sh}. \textbf{Verificar
+    explícitamente que el checkout nuevo en \texttt{xook} lo traiga}, no
+    asumirlo por venir del mismo repo.
+    \item Workaround si no se puede recompilar de inmediato:
+    \texttt{include\_baryon 0} en \texttt{iS3D\_parameters.dat} (fuerza el
+    camino spline) --- solo válido si la superficie tiene $\mu_B\approx0$.
+  \end{itemize}
+  \item Si la superficie viene de una corrida \textbf{boost-invariant}
+  (2D), fijar \texttt{mode 8} explícitamente en la config de iS3D --- el
+  reader por defecto da resultados raros con superficies 2D. Confirmar con
+  $\langle T\rangle$/$\langle\mu_B\rangle$ físicamente razonables tras
+  correr.
+\end{enumerate}
+
+\section{UrQMD --- afterburner / cascada}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Parche de compilación obligatorio con gfortran $\ge$10}:
+  UrQMD 3.4 es Fortran legacy; gfortran $\ge$10 endureció el chequeo de
+  tipos por defecto y falla con \texttt{Type mismatch}/\texttt{Rank
+  mismatch}. \texttt{./install\_urqmd.sh} (este repo) descarga el tar
+  oficial de \texttt{urqmd.org} y aplica
+  \texttt{patches/urqmd\_Linux.mk.patch} automáticamente --- agrega
+  \texttt{-std=legacy -fallow-argument-mismatch -ffixed-line-length-none}
+  antes de compilar.
+  \item \textbf{Semántica invertida de las banderas de salida}: listar una
+  unidad de salida (\texttt{fXX}) en la tarjeta de entrada de UrQMD
+  \emph{suprime} esa salida (\texttt{bfXX=.true.} $\to$ no escribe), no la
+  habilita. Para quedarse solo con \texttt{f19} (OSCAR1997A nativo, el
+  formato correcto --- \textbf{no} \texttt{f14}, que es el formato extendido
+  propio de UrQMD y \emph{no} es OSCAR), listar las que \emph{no} se
+  quieren: \texttt{f13 f14 f15 f16 f18 f20}, dejando \texttt{f19} sin listar.
+  \item Si se usa el wrapper del afterburner (no la cascada standalone):
+  confirmar que siembra \texttt{frrx/frry/frrz/frr0} (posiciones reales de
+  freeze-out) en el loop de \texttt{getoldevent} (\texttt{output.f}) ---
+  un wrapper viejo sin este parche deja esas posiciones en cero/no
+  inicializadas, invalidando cualquier análisis de $c\tau$/core-halo. El
+  parche está en
+  \texttt{AuAu\_200GeV/crab\_analysis/patches/urqmd\_afterburner\_frzout\_
+  creation\_point.patch}; \textbf{no} se retro-aplica a output ya generado
+  antes del fix.
+  \item Usar siempre \texttt{f19}/\texttt{f20} nativos para cualquier
+  análisis que dependa de la posición real de freeze-out --- \texttt{f20}
+  (\texttt{osc99\_event}) escribe \texttt{frrx/frry/frrz/frr0} (coordenadas
+  reales); \texttt{f14} (\texttt{file14out}) escribe \texttt{r0/rx/ry/rz}
+  (posiciones \emph{free-streamed}, distinta cantidad física) --- confirmado
+  leyendo \texttt{output.f} directamente.
+  \item \textbf{\texttt{stop 137} no es OOM}: UrQMD 3.4 puede abortar con
+  \texttt{stop 137} desde \texttt{anndec.f:285} (canal de decaimiento sin
+  probabilidades de rama, p.\ ej.\ \texttt{ityp 139}, $m=2.112$~GeV) --- es
+  un exit code propio de UrQMD, no memoria. Si un job array pierde
+  3--43\% de tareas según config, revisar primero este crash antes de
+  asumir OOM. Mitigación actual: correr en chunks pequeños (no hay
+  reintento/skip automático implementado todavía).
+\end{enumerate}
+
+\section{CRAB3}
+
+\begin{enumerate}[leftmargin=*]
+  \item Clonar, parchar y compilar con \texttt{./install\_crab3.sh} (este
+  repo; CRAB3 no usa \texttt{cmake}, se compila directo con
+  \texttt{g++ crab.cpp -o crab.e}). Aplica dos parches:
+  \begin{itemize}
+    \item \textbf{\texttt{Increase NPHASEMAX in crab.cpp}}: el
+    \texttt{\#define NPHASEMAX 20000000} de \texttt{crab.cpp} es un arreglo
+    \emph{estático} de punteros (\texttt{NBMAX=1}) que guarda todos los
+    $\pi^+$ de todos los eventos pooled del run; campañas grandes
+    ($\sim$1M eventos) lo superan y \texttt{crab\_prinput.cpp} aborta. Fix
+    vendorizado aquí: \texttt{patches/crab3\_increase\_nphasemax.patch}
+    simplemente sube la constante a \texttt{200000000} --- al ser un
+    arreglo de punteros (no de objetos), el costo real de memoria (BSS)
+    crece solo con las entradas realmente usadas, no con el tamaño
+    declarado.
+    \item \texttt{patches/crab3\_nmax\_mixing\_heap\_fix.patch}: mueve los
+    arreglos de \texttt{MIXED\_PAIRS\_FOR\_DENOM}
+    (\texttt{NMAX\_FOR\_MIXING=200000}) de la pila al heap en
+    \texttt{crab\_main.cpp} --- evita overflow de stack.
+  \end{itemize}
+  \item Crear \texttt{results/} antes de correr \texttt{crab.e} ---
+  \texttt{fopen()} sin ese directorio segfaultea al arrancar.
+  \item \textbf{\texttt{--mem} de SLURM no se puede fijar estático}: la
+  multiplicidad real ($\pi^+$/evento) solo se conoce corriendo el
+  afterburner primero. Insertar un job intermedio ``autosize'' (muestrea un
+  shard real ya escrito, proyecta el total, aplica margen $\sim$30\%) entre
+  el afterburner y el job real de CRAB3 --- patrón ya implementado en
+  \texttt{music/BiBi\_cascade\_*GeV/figA3/slurm\_*\_crab3\_autosize.sh}.
+  \item Si se actualiza memoria de un job ya enviado con
+  \texttt{scontrol update JobId=<id> MinMemoryNode=<valor>}: el campo
+  espera un entero plano en MB, \emph{no} un sufijo \texttt{G}
+  (\texttt{MinMemoryNode=32768}, no \texttt{32G}).
+  \item Antes de comparar contra un \texttt{crab3\_qinv*.dat} de
+  referencia: leer siempre el header --- algunos usan
+  \texttt{k=(p2-p1)/2:} (momento reducido) y otros \texttt{k=(p2-p1):}
+  (Qinv completo); \textbf{no} es una convención fija por proyecto, cambia
+  por build/config. Un factor $\sim$2 de diferencia en $R$ ajustado suele
+  venir de esto.
+\end{enumerate}
+
+\section{\texttt{be/} --- C2/C3 en Python}
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Unidades}: \texttt{be/kernels.py} trabaja en GeV/fm con
+  momento reducido $k=Q_{\rm inv}/2$. Los wrappers de alto nivel
+  (\texttt{compute\_c2\_crab}, \texttt{compute\_c2\_batched}) convierten
+  \texttt{maxmom\_mev/1000} internamente --- un driver que llama al kernel
+  \texttt{numba} directo \textbf{no} hace esa conversión, y el fallo es
+  silencioso (exit 0, arrays con la forma correcta, contenido mal: eje
+  0--50~GeV en vez de 0--50~MeV, $C_2\approx1.000$ plano). Convertir
+  siempre \texttt{maxmom\_gev = maxmom\_mev / 1000.0} antes de binear si se
+  llama \texttt{kernels.py} directo; validar contra el estimador
+  pool-random como cross-check.
+  \item \textbf{Simetrización de Bose--Einstein en C3}: \texttt{weight =
+  w12*w13*w23} (producto de pesos pairwise) \textbf{no} es la
+  simetrización genuina para $N=3$ bosones idénticos --- hay que sumar
+  sobre las $3!=6$ permutaciones de $S_3$. Usar
+  \texttt{kernels.triplet\_be\_weight()} (ya suma las 6 fases de
+  permutación directo de los cuadrivectores).
+  \item \textbf{Memoria}: la implementación original de \texttt{c2.py}/
+  \texttt{c3.py} retenía cada par/triplet muestreado en memoria (RSS
+  escala linealmente: 100M triplets $\to$ 24~GB, 400M $\to$ 88~GB;
+  \texttt{n\_pairs=2e8} $\to$ $\sim$30~GB). Usar el refactor de reservoir
+  acotado (\texttt{reservoir\_size}, ya presente) --- RSS acotado
+  independiente de \texttt{n\_pairs}/\texttt{n\_triplets}; correr además
+  bajo \texttt{ulimit -v} como cinturón de seguridad en jobs grandes.
+  \item El reservoir del denominador mixto en
+  \texttt{compute\_c3\_diagonal\_crab} debe llenarse \textbf{sin}
+  condición desde todo intento crudo, no solo con triplets ya aceptados
+  por el corte diagonal --- llenarlo condicionado sesga la referencia
+  mixta hacia abajo (meseta sospechosa $\sim$0.5--0.6 a $k$ grande).
+  \item \texttt{plotting.py}'s \texttt{plot\_c2()}: enmascarar
+  \texttt{ref\_err >= 0} antes de graficar (algunos \texttt{.dat} usan el
+  sentinel $-1$ para ``sin datos'' en un bin; sin la máscara,
+  \texttt{yerr} negativo crashea el errorbar).
+\end{enumerate}
+
+\section{Gotchas generales de SLURM}
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Nunca fijar \texttt{--time}} en estos jobs --- dejar el
+  default del cluster (sin límite); un \texttt{--time} viejo ya causó
+  pérdida de 20/60 tareas por \texttt{TIMEOUT} en la campaña de cascada
+  UrQMD standalone (\S\ref{sec:validacion}).
+  \item \textbf{\texttt{\$0}/\texttt{dirname "\$0"} no localiza el propio
+  script bajo un job array}: SLURM copia el script a un spool dir
+  (\texttt{/var/lib/slurm/slurmd/jobNNN/}) y ejecuta la copia --- resolver
+  rutas relativas a scripts ``vecinos'' desde \texttt{\$SLURM\_SUBMIT\_DIR}
+  o hardcodear la ruta absoluta, no derivarla en runtime.
+  \item Un \texttt{glob} de muchos archivos de shards falla con
+  \texttt{Argument list too long} (excede \texttt{ARG\_MAX}) --- usar
+  \texttt{find ... -exec} o iterar desde una lista en archivo.
+  \item \texttt{acaxees02} no monta \texttt{/storage} de forma consistente
+  --- confirmar el mount antes de lanzar un array que dependa de él.
+  \item Los nodos del cluster pueden tener velocidad desigual --- no asumir
+  que todas las tareas de un array terminan en tiempo similar.
+\end{itemize}
+
+\section{Configurar acceso sin password (para lanzar/monitorear sin dejar
+la terminal abierta)}
+
+Si \texttt{xook} necesita transferir datos hacia/desde otro nodo del
+cluster por \texttt{rsync}/\texttt{ssh} de forma no interactiva (jobs largos
+en \texttt{screen}/\texttt{nohup}), generar una llave dedicada en vez de
+depender de password:
+
+\begin{Verbatim}[fontsize=\small]
+ssh-keygen -t ed25519 -f ~/.ssh/xook_<destino> -N ""
+ssh-copy-id -i ~/.ssh/xook_<destino>.pub usuario@destino
+\end{Verbatim}
+
+y usarla explícitamente en el \texttt{rsync}: \texttt{-e "ssh -i
+~/.ssh/xook\_<destino>"}. Lanzar transferencias largas con
+\texttt{screen -dmS <nombre> bash script.sh} para poder desengancharse
+(\texttt{Ctrl+A} luego \texttt{D}, \textbf{no} \texttt{Ctrl+D}) sin matar el
+proceso.
+
+\section{Validación: yield Bi+Bi $\sqrt{s_{NN}}=5.8$~GeV vs.\ cascada UrQMD standalone}
+\label{sec:validacion}
+
+Antes de confiar en la cadena hidro completa (MUSIC~$\to$~iS3D~$\to$~UrQMD~
+$\to$~CRAB3) recién instalada en \texttt{xook}, se recomienda reproducir el
+número de referencia contra el que se calibra \texttt{s\_factor}/los
+parámetros de \texttt{3dMCGlauber} a esta energía: el yield final de
+$\pi^+$ de una cascada UrQMD \textbf{standalone} (sin MUSIC, sin iS3D ---
+solo UrQMD puro), que sirve de ``blanco'' independiente de cualquier
+suposición hidrodinámica.
+
+\subsection{Instalación de la cascada standalone}
+
+Binario distinto al afterburner del pipeline hidro (\texttt{urqmd.x86\_64}
+vs.\ \texttt{urqmd\_afterburner}) --- mismo repo \texttt{urqmd-3.4}, mismo
+parche de compilación de la \S6 (\texttt{Linux.mk.patch}, obligatorio con
+gfortran $\ge$10), pero compilado en modo standalone (genera su propia
+colisión núcleo-núcleo en vez de leer una superficie de freeze-out de
+iS3D). Instalar con \texttt{./install\_urqmd.sh} (este repo).
+
+\subsection{Tarjeta de entrada}
+
+Reconstruida leyendo \texttt{input.f} (sin documentación externa
+disponible):
+
+\begin{Verbatim}[fontsize=\small]
+pro 209 83        # proyectil: Bi (A=209, Z=83)
+tar 209 83        # blanco:    Bi (A=209, Z=83)
+
+nev <N>           # numero de eventos
+IMP 0.0 1.0       # parametro de impacto explicito (fm), central
+
+ecm 5.8           # sqrt(s_NN) por par NN (srtflag=1)
+eos 0             # 0 = cascada pura, sin potenciales
+rsd <seed>
+tim 200 200       # tiempo total de propagacion / intervalo de salida (fm/c)
+
+f13
+f14
+#f19              # NO listar: es la salida OSCAR1997A real que se necesita
+f15
+f16
+f20               # listar = suprimir esa unidad (ver bug de semantica, S5)
+
+xxx               # fin de tarjeta
+\end{Verbatim}
+
+Ejecución: variables de entorno \texttt{ftn09}=archivo de entrada,
+\texttt{ftn13..ftn20}=archivos de salida por unidad Fortran, luego
+\texttt{./urqmd.x86\_64}.
+
+\textbf{Gotcha ya encontrado en esta misma validación}: el piloto original
+se corrió creyendo que \texttt{f14} era el formato OSCAR1997A --- es
+incorrecto (\texttt{f14} es el formato extendido nativo de UrQMD, columnas
+\texttt{t X Y Z E Px Py Pz m ityp iso chg lcl\# ncl or}). \texttt{f19} es
+el OSCAR1997A verdadero (con PDG ids vía \texttt{pdgid()}). Confirmar que
+la tarjeta de entrada deja \texttt{f19} habilitado (sin listar) antes de
+lanzar la campaña completa, no solo un evento de prueba.
+
+\subsection{Paralelizar en SLURM}
+
+Job array, cada tarea en un directorio aislado (\texttt{mktemp -d}) para
+evitar condiciones de carrera al escribir archivos de nombre fijo:
+
+\begin{Verbatim}[fontsize=\small]
+sbatch --array=0-59 scripts/slurm_urqmd_cascade_array.sh \
+    <n_total_events> <outdir> <base_seed>
+\end{Verbatim}
+
+Sin \texttt{--time} (\S9) --- un límite de tiempo viejo hizo perder 20/60
+tareas por \texttt{TIMEOUT} en la corrida de referencia original.
+
+\subsection{Cálculo del yield y comparación con el blanco}
+
+Sobre el \texttt{f19} combinado (OSCAR1997A, filtrando solo $\pi^+$),
+calcular la rapidez real por partícula,
+\[
+  y = \tfrac{1}{2}\ln\!\left(\frac{E+p_z}{E-p_z}\right),
+\]
+y contar $\pi^+$ con $|y|<0.5$:
+\[
+  \frac{dN_{\pi^+}}{dy}\Big|_{|y|<0.5} = \frac{N_{\pi^+}(|y|<0.5)}{N_{\rm eventos}}.
+\]
+
+\textbf{Valor de referencia ya medido} (job 12333, 66{,}670 eventos
+sobrevivientes de 100{,}000 lanzados --- 20/60 tareas se perdieron por el
+\texttt{TIMEOUT} descrito arriba, no relanzadas):
+\[
+  \frac{dN_{\pi^+}}{dy}\Big|_{|y|<0.5} = \frac{5{,}717{,}085}{66{,}670} = 85.75.
+\]
+
+\textbf{Criterio de aceptación para el checkout nuevo en \texttt{xook}}:
+correr el mismo número de eventos (o una fracción estadísticamente
+suficiente, $\gtrsim$10{,}000) con la misma tarjeta de entrada
+(\texttt{ecm 5.8}, \texttt{IMP 0.0 1.0}, \texttt{eos 0}) y confirmar que el
+$dN_{\pi^+}/dy(|y|<0.5)$ medido cae dentro del error estadístico de 85.75.
+Una discrepancia grande indica que algún parche de la \S6 (semántica de
+banderas \texttt{fXX}, o el parche de compilación de gfortran) no se aplicó
+correctamente en la instalación nueva, \textbf{antes} de invertir tiempo de
+cómputo en la cadena hidro completa.
+
+Este mismo yield (85.75) es además el ``blanco de calibración'' usado
+después para ajustar \texttt{3dMCGlauber}/\texttt{s\_factor} en las
+corridas hidro completas a esta energía (ver
+\texttt{BiBi\_cascade\_5.8GeV/README.md}, secciones de escaneo de
+\texttt{s\_factor} y barrido de \texttt{shadowing\_factor}/\texttt{BG}) ---
+reproducirlo aquí no es solo un chequeo de instalación, es el primer paso
+real de esa calibración.
+
+\section{Resumen: orden de instalación recomendado}
+
+\begin{enumerate}
+  \item Prerrequisitos del sistema (\S2).
+  \item MUSIC + parches \texttt{freeze\_pseudo}/\texttt{read\_in\_parameters}
+  (\S3).
+  \item 3dMCGlauber + parche de núcleo Bi-209 (\S4).
+  \item UrQMD (standalone \emph{y} afterburner) + parche de compilación
+  gfortran (\S6, \S\ref{sec:validacion}).
+  \item \textbf{Validación de yield 5.8~GeV vs.\ cascada UrQMD}
+  (\S\ref{sec:validacion}) --- antes de seguir.
+  \item iS3D + parche crítico \texttt{deltafReader.cpp} (\S5).
+  \item CRAB3 (\S7).
+  \item \texttt{be/} (\S8), solo si se van a correr correlaciones C2/C3
+  además del pipeline de yields/espectros.
+\end{enumerate}
+
+\end{document}
