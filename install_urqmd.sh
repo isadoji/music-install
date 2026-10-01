@@ -58,10 +58,19 @@ else
     TAR_FILE="$(dirname "$URQMD_DIR")/urqmd-3.4.tar"
     if [[ ! -f "$TAR_FILE" ]]; then
         echo "  Descargando de $URQMD_URL ..."
-        if ! curl -fsSL -o "$TAR_FILE" "$URQMD_URL"; then
-            echo "ERROR: no se pudo descargar automáticamente."
-            echo "  Descárgalo a mano desde $URQMD_URL y colócalo en:"
+        curl -fsSL -o "$TAR_FILE" "$URQMD_URL" || true
+        # urqmd.org redirige todo el dominio a la página del mantenedor
+        # (itp.uni-frankfurt.de), que responde 200 con HTML en vez de 404 —
+        # curl -f no detecta esto como error, hay que verificar el contenido.
+        if [[ ! -f "$TAR_FILE" ]] || ! tar tf "$TAR_FILE" >/dev/null 2>&1; then
+            rm -f "$TAR_FILE"
+            echo "ERROR: no se pudo descargar automáticamente (urqmd.org ya no sirve"
+            echo "  urqmd-3.4.tar directo — el dominio redirige a la página del"
+            echo "  mantenedor, que hoy en día solo publica UrQMD 4.0)."
+            echo "  Coloca un urqmd-3.4.tar válido a mano en:"
             echo "    $TAR_FILE"
+            echo "  (pídelo a urqmd@urqmd.org, o cópialo desde un checkout que ya"
+            echo "  lo tenga — p. ej. en doramilaje: github/urqmd/urqmd-3.4.tar)"
             echo "  luego vuelve a correr este script."
             exit 1
         fi
