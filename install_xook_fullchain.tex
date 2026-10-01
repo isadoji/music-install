@@ -73,13 +73,13 @@ adelante. Verificar esto explícitamente antes de compilar (o dejar que
 \begin{Verbatim}[fontsize=\small]
 git clone https://github.com/isadoji/music-install.git
 cd music-install
-./install_music.sh /software/mexnica/MUSIC
-export MUSIC_DIR=/software/mexnica/MUSIC # agregar a .bashrc
+./install_music.sh /software/mexnica/MUSIC/music
+export MUSIC_DIR=/software/mexnica/MUSIC/music # agregar a .bashrc
 \end{Verbatim}
   \item \textbf{Aplicar parches conocidos antes de dar por buena la
-  instalación} 
+  instalación}
   \begin{Verbatim}[fontsize=\small]
-  ./apply_music_fixes.sh /software/mexnica/MUSIC
+  ./apply_music_fixes.sh /software/mexnica/MUSIC/music
 \end{Verbatim}
   (\texttt{patches/},este repo):
   \begin{itemize}
@@ -99,7 +99,7 @@ export MUSIC_DIR=/software/mexnica/MUSIC # agregar a .bashrc
   contra el original de \texttt{epos/src/MSt/}). Ya no depende de un
   checkout aparte de \texttt{epos/} al lado. Instalar con:
 \begin{Verbatim}[fontsize=\small]
-./apply_2dtexs.sh /software/mexnica/MUSIC
+./apply_2dtexs.sh /software/mexnica/MUSIC/music
 \end{Verbatim}
   Este script hace todo en un solo paso: copia los archivos nuevos, reemplaza
   \texttt{eos.cpp}/\texttt{CMakeLists.txt}, aplica
