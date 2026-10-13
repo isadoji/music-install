@@ -1,0 +1,21 @@
+diff --git a/src/hydro_source_strings.cpp b/src/hydro_source_strings.cpp
+--- a/src/hydro_source_strings.cpp
++++ b/src/hydro_source_strings.cpp
+@@ -274,7 +274,16 @@ void HydroSourceStrings::compute_norm_for_strings() {
+         E_string_norm *= prefactor_etas*deta;
+         double E_string = (it->mass*cosh(it->y_l_i) + it->mass*cosh(it->y_r_i)
+                            - it->mass*cosh(it->y_l) - it->mass*cosh(it->y_r));
+-        it->norm = E_string/std::max(E_string_norm, Util::small_eps);
++        // E_string_norm is the Gaussian-smeared box-profile integral; its
++        // magnitude is the string's effective eta width regardless of the
++        // eta_s_left/eta_s_right ordering, but for a reversed string
++        // (eta_s_right < eta_s_left) e_eta flips sign everywhere, so
++        // E_string_norm itself comes out strongly negative rather than
++        // near zero. Clamping from below with std::max() on the signed
++        // value then picks small_eps and blows up the ratio by ~1e12-1e14.
++        // Clamp the magnitude instead so the sign convention of the two
++        // endpoints can never make the denominator pathologically small.
++        it->norm = E_string/std::max(std::abs(E_string_norm), Util::small_eps);
+         E_string_total += E_string;
+         double Pz_string = (  it->mass*sinh(it->y_l_i) - it->mass*sinh(it->y_l)
+                             + it->mass*sinh(it->y_r_i) - it->mass*sinh(it->y_r));

@@ -1,5 +1,5 @@
 #!/bin/bash
-# apply_music_fixes.sh — aplica dos parches generales a un MUSIC ya instalado
+# apply_music_fixes.sh — aplica parches generales a un MUSIC ya instalado
 # con install_music.sh (README §8.1):
 #
 #   - freeze_pseudo.patch: quita un free(particleList) que cuelga en
@@ -8,6 +8,13 @@
 #     si vas a usar una EOS custom como 2DTExS — esa tabla y el código de
 #     la EOS en sí NO están vendorizados en este repo, hay que traerlos de
 #     otro checkout que ya los tenga).
+#   - hydro_source_strings_norm_clamp.patch: en compute_norm_for_strings(),
+#     un string con eta_s_right < eta_s_left (span invertido) hace que
+#     E_string_norm salga fuertemente negativo en vez de cercano a cero;
+#     el std::max(E_string_norm, small_eps) original es ciego al signo y
+#     termina usando small_eps, disparando it->norm a ~1e12-1e14. Se
+#     confirmó en IC de producción reales (6/656 strings, campaña Bi+Bi
+#     5.8 GeV). Fix: std::max(std::abs(E_string_norm), small_eps).
 #
 # Uso:
 #   ./apply_music_fixes.sh [directorio_MUSIC]
@@ -42,6 +49,7 @@ apply_one() {
 
 apply_one "freeze_pseudo.patch"        "src/freeze_pseudo.cpp"        "$PROJECT_DIR/patches/freeze_pseudo.patch"
 apply_one "read_in_parameters.patch"   "src/read_in_parameters.cpp"   "$PROJECT_DIR/patches/read_in_parameters.patch"
+apply_one "hydro_source_strings_norm_clamp.patch" "src/hydro_source_strings.cpp" "$PROJECT_DIR/patches/hydro_source_strings_norm_clamp.patch"
 
 echo ""
 echo "── Recompilando ──"
