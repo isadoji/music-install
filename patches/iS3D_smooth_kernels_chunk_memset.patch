@@ -1,0 +1,35 @@
+diff --git a/src/cpp/emissionfunction_smooth_kernels.cpp b/src/cpp/emissionfunction_smooth_kernels.cpp
+index 87e02e9..523be1d 100644
+--- a/src/cpp/emissionfunction_smooth_kernels.cpp
++++ b/src/cpp/emissionfunction_smooth_kernels.cpp
+@@ -6,6 +6,7 @@
+ #include <iomanip>
+ #include <vector>
+ #include <stdio.h>
++#include <cstring>
+ #include <random>
+ #include <array>
+ #ifdef _OMP
+@@ -94,8 +95,9 @@ void EmissionFunctionArray::calculate_dN_pTdpTdphidy(double *Mass, double *Sign,
+     //declare a huge array of size npart * FO_chunk * pT_tab_length * phi_tab_length * y_tab_length
+     //to hold the spectra for each surface cell in a chunk, for all particle species
+     int npart = number_of_chosen_particles;
++    long long int dN_all_size = (long long int)npart * (long long int)FO_chunk * (long long int)pT_tab_length * (long long int)phi_tab_length * (long long int)y_tab_length;
+     double *dN_pTdpTdphidy_all;
+-    dN_pTdpTdphidy_all = (double*)calloc((long long int)npart * (long long int)FO_chunk * (long long int)pT_tab_length * (long long int)phi_tab_length * (long long int)y_tab_length, sizeof(double));
++    dN_pTdpTdphidy_all = (double*)calloc(dN_all_size, sizeof(double));
+ 
+ 
+     //loop over bite size chunks of FO surface
+@@ -103,6 +105,11 @@ void EmissionFunctionArray::calculate_dN_pTdpTdphidy(double *Mass, double *Sign,
+     {
+       int endFO = FO_chunk;
+       if(n == (FO_length / FO_chunk)) endFO = FO_length - (n * FO_chunk); // don't go out of array bounds
++
++      // re-zero the chunk buffer: cells skipped by the udsigma<=0 continue below never
++      // write their slots, so without this they would retain the previous chunk's values
++      // and get re-added in the reduction step (pT-independent stale floor / azimuthal striping).
++      memset(dN_pTdpTdphidy_all, 0, dN_all_size * sizeof(double));
+       #pragma omp parallel for
+       for(int icell = 0; icell < endFO; icell++)  // cell index inside each chunk
+       {

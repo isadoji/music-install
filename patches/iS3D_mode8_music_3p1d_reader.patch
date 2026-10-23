@@ -1,0 +1,236 @@
+diff --git a/src/cpp/emissionfunction.cpp b/src/cpp/emissionfunction.cpp
+index c3c3ad2..12ccfb6 100644
+--- a/src/cpp/emissionfunction.cpp
++++ b/src/cpp/emissionfunction.cpp
+@@ -1325,7 +1325,7 @@ void EmissionFunctionArray::calculate_spectra(std::vector< std::vector <Sampled_
+ 
+     // freezeout surface info exclusive for VH
+     double *E, *T, *P;
+-    if (MODE == 0 || MODE == 1 || MODE == 4 || MODE == 5 || MODE == 6 || MODE == 7)
++    if (MODE == 0 || MODE == 1 || MODE == 4 || MODE == 5 || MODE == 6 || MODE == 7 || MODE == 8)
+     {
+       E = (double*)calloc(FO_length, sizeof(double));
+       P = (double*)calloc(FO_length, sizeof(double));
+@@ -1422,7 +1422,7 @@ void EmissionFunctionArray::calculate_spectra(std::vector< std::vector <Sampled_
+       //reading info from surface
+       surf = &surf_ptr[icell];
+ 
+-      if (MODE == 0 || MODE == 1 || MODE == 4 || MODE == 5 || MODE == 6 || MODE == 7)
++      if (MODE == 0 || MODE == 1 || MODE == 4 || MODE == 5 || MODE == 6 || MODE == 7 || MODE == 8)
+       {
+         E[icell] = surf->E;
+         P[icell] = surf->P;
+@@ -1500,7 +1500,7 @@ void EmissionFunctionArray::calculate_spectra(std::vector< std::vector <Sampled_
+ 
+     // compute the particle spectra
+ 
+-    if (MODE == 0 || MODE == 1 || MODE == 4 || MODE == 5 || MODE == 6 || MODE == 7) // viscous hydro
++    if (MODE == 0 || MODE == 1 || MODE == 4 || MODE == 5 || MODE == 6 || MODE == 7 || MODE == 8) // viscous hydro
+     {
+       switch(DF_MODE)
+       {
+@@ -1706,7 +1706,7 @@ void EmissionFunctionArray::calculate_spectra(std::vector< std::vector <Sampled_
+     free(Sign);
+     free(Baryon);
+ 
+-    if (MODE == 0 || MODE == 1 || MODE == 4 || MODE == 5 || MODE == 6 || MODE == 7)
++    if (MODE == 0 || MODE == 1 || MODE == 4 || MODE == 5 || MODE == 6 || MODE == 7 || MODE == 8)
+     {
+       free(E);
+       free(P);
+diff --git a/src/cpp/readindata.cpp b/src/cpp/readindata.cpp
+index 3e728dc..42bb14f 100644
+--- a/src/cpp/readindata.cpp
++++ b/src/cpp/readindata.cpp
+@@ -125,6 +125,18 @@ int FO_data_reader::get_number_cells()
+   //add more options for types of FO file
+   ostringstream surface_file;
+   surface_file << pathToInput << "/surface.dat";
++
++  if (mode == 8)
++  {
++    // real MUSIC 3+1D binary surface: 34 float32 fields/cell (evolve.cpp,
++    // FindFreezeOutSurface_Cornelius binary branch), no text rows to count
++    ifstream f(surface_file.str().c_str(), ios::binary | ios::ate);
++    long bytes = (long)f.tellg();
++    f.close();
++    number_of_cells = (int)(bytes / (34 * sizeof(float)));
++    return(number_of_cells);
++  }
++
+   Table block_file(surface_file.str().c_str());
+   number_of_cells = block_file.getNumberOfRows();
+   return(number_of_cells);
+@@ -140,6 +152,7 @@ void FO_data_reader::read_surf_switch(long length, FO_surf* surf_ptr)
+   else if (mode == 5) read_surf_VH_Vorticity(length, surf_ptr); //GPU-VH surface file containing viscous hydro dissipative currents and thermal vorticity tensor
+   else if (mode == 6) read_surf_VH_MUSIC_New(length, surf_ptr); //boost invariant surface from new (public) version of MUSIC
+   else if (mode == 7) read_surf_VH_hiceventgen(length, surf_ptr); //boost invariant surface produced by the hydro module in https://github.com/Duke-QCD/hic-eventgen
++  else if (mode == 8) read_surf_VH_MUSIC_3p1D(length, surf_ptr); //real 3+1D MUSIC dynamical-init binary surface (local extension, nica/pions project)
+   return;
+ }
+ 
+@@ -810,6 +823,144 @@ void FO_data_reader::read_surf_VH_MUSIC_New(long length, FO_surf* surf_ptr)
+ }
+ 
+ 
++// Real 3+1D MUSIC dynamical-initialization surface, binary format
++// (src/evolve.cpp, FindFreezeOutSurface_Cornelius, surface_in_binary branch:
++// 34 contiguous float32 fields per cell). Unlike read_surf_VH_MUSIC_New
++// (mode 6), this keeps the real eta_s and dsigma_eta (no boost-invariance
++// assumed) and reads muS, muC, rhob directly from their own columns
++// instead of discarding/omitting them. MUSIC's raw binary fields (E, T,
++// muB, muS, shear Wmunu, bulk pi_b) are in natural units (fm^-4 / fm^-1),
++// since evolve.cpp computes epsFO = epsFO_list/hbarc before ever calling
++// the EOS (src/evolve.cpp:329) -- confirmed against read_surf_VH_MUSIC_New
++// (mode 6), which applies the same *hbarC rescaling to the equivalent
++// text-format columns. rhob and baryon diffusion currents are number
++// densities (fm^-3) and need no rescaling.
++// Local extension for the nica/pions project; not upstream in iS3D.
++void FO_data_reader::read_surf_VH_MUSIC_3p1D(long length, FO_surf* surf_ptr)
++{
++  cout << "Reading in freezeout surface in real 3+1D MUSIC dynamical (binary) format" << endl;
++  ostringstream surfdat_stream;
++  surfdat_stream << pathToInput << "/surface.dat";
++  ifstream surfdat(surfdat_stream.str().c_str(), ios::binary);
++
++  double Tavg = 0.0;
++  double Eavg = 0.0;
++  double Pavg = 0.0;
++  double muBavg = 0.0;
++  double nBavg = 0.0;
++  double total_surface_volume = 0.0;
++
++  float array[34];
++
++  for (long i = 0; i < length; i++)
++  {
++    surfdat.read((char*)array, 34 * sizeof(float));
++
++    surf_ptr[i].tau = array[0];
++    surf_ptr[i].x   = array[1];
++    surf_ptr[i].y   = array[2];
++    surf_ptr[i].eta = array[3];
++
++    // MUSIC's binary surface writes exactly the same numbers as its text
++    // surface (src/evolve.cpp, surface_in_binary vs text branch): FULLSU[mu]
++    // WITHOUT the Milne tau Jacobian, and the flow component array[11] as
++    // MUSIC's internal u[3] = tau * u^eta (normalization is (u^0)^2 - (u^1)^2
++    // - (u^2)^2 - (u[3])^2 = 1, src/reconst.cpp:135). iS3D's internal
++    // convention (see read_surf_VH mode 0/1, the target format) is
++    // dsigma_mu WITH the tau Jacobian and un = bare contravariant u^eta
++    // [fm^-1]. read_surf_VH_MUSIC_New (mode 6) does exactly this conversion
++    // for the text form (dat..dan *= tau, un = u[3]/tau); do the same here.
++    // This is a 3+1D reader, so dan is kept (not zeroed like the boost-
++    // invariant mode 6).
++    double tau = array[0];
++
++    surf_ptr[i].dat = array[4] * tau;
++    surf_ptr[i].dax = array[5] * tau;
++    surf_ptr[i].day = array[6] * tau;
++    surf_ptr[i].dan = array[7] * tau;
++
++    surf_ptr[i].ut = array[8];
++    surf_ptr[i].ux = array[9];
++    surf_ptr[i].uy = array[10];
++    surf_ptr[i].un = array[11] / tau;
++
++    // raw fields are in MUSIC's natural units (fm^-4 / fm^-1); rescale by
++    // hbarC to GeV, same convention as read_surf_VH_MUSIC_New (mode 6)
++    double E    = array[12] * hbarC;     // epsFO, GeV/fm^3
++    double T    = array[13] * hbarC;     // GeV
++    double muB  = array[14] * hbarC;     // GeV
++    double muS  = array[15] * hbarC;     // GeV (unused downstream, kept for completeness)
++    double muC  = array[16] * hbarC;     // GeV (unused downstream, kept for completeness)
++    double e_p_over_T = array[17];       // (e+p)/T, fm^-3, scale-invariant -- no hbarC needed
++    double P = e_p_over_T * T - E;       // reconstruct pressure, same relation as mode 6
++
++    surf_ptr[i].E = E;
++    surf_ptr[i].T = T;
++    surf_ptr[i].P = P;
++    surf_ptr[i].muB = muB;
++
++    // shear stress: hbarC to GeV/fm^3, and the eta components carry powers
++    // of 1/tau to go from MUSIC's pi^{mu eta} (= tau * pi^{mu\hat eta}) to
++    // iS3D's convention, same as read_surf_VH_MUSIC_New (mode 6).
++    surf_ptr[i].pitt = array[18] * hbarC;
++    surf_ptr[i].pitx = array[19] * hbarC;
++    surf_ptr[i].pity = array[20] * hbarC;
++    surf_ptr[i].pitn = array[21] * hbarC / tau;
++    surf_ptr[i].pixx = array[22] * hbarC;
++    surf_ptr[i].pixy = array[23] * hbarC;
++    surf_ptr[i].pixn = array[24] * hbarC / tau;
++    surf_ptr[i].piyy = array[25] * hbarC;
++    surf_ptr[i].piyn = array[26] * hbarC / tau;
++    surf_ptr[i].pinn = array[27] * hbarC / tau / tau;
++
++    surf_ptr[i].bulkPi = array[28] * hbarC;
++    surf_ptr[i].nB = array[29];          // rhob, fm^-3, written directly by MUSIC -- no hbarC (number density)
++
++    if (include_baryondiff_deltaf)
++    {
++      surf_ptr[i].Vt = array[30];
++      surf_ptr[i].Vx = array[31];
++      surf_ptr[i].Vy = array[32];
++      surf_ptr[i].Vn = array[33] / tau;   // V^eta = tau * V^\hat eta, same 1/tau as un
++    }
++
++    double ux = surf_ptr[i].ux;
++    double uy = surf_ptr[i].uy;
++    double un = surf_ptr[i].un;   // now the bare contravariant u^eta [fm^-1]
++    double ut = sqrt(1.0 + ux * ux + uy * uy + tau * tau * un * un);
++    double dat = surf_ptr[i].dat;
++    double dax = surf_ptr[i].dax;
++    double day = surf_ptr[i].day;
++    double dan = surf_ptr[i].dan;
++    double nB = surf_ptr[i].nB;
++
++    double udsigma = ut * dat + ux * dax + uy * day + un * dan;
++    double dsigma_dsigma = dat * dat - dax * dax - day * day - dan * dan / (tau * tau);
++    double dsigma_magnitude = fabs(udsigma) + sqrt(fabs(udsigma * udsigma - dsigma_dsigma));
++
++    total_surface_volume += dsigma_magnitude;
++    Eavg += (E * dsigma_magnitude);
++    Tavg += (T * dsigma_magnitude);
++    Pavg += (P * dsigma_magnitude);
++    muBavg += (muB * dsigma_magnitude);
++    nBavg += (nB * dsigma_magnitude);
++  }
++  surfdat.close();
++
++  Tavg /= total_surface_volume;
++  Eavg /= total_surface_volume;
++  Pavg /= total_surface_volume;
++  muBavg /= total_surface_volume;
++  nBavg /= total_surface_volume;
++
++  ofstream thermal_average("average_thermodynamic_quantities.dat", ios_base::out);
++  thermal_average << setprecision(15) << Tavg << "\n" << Eavg << "\n" << Pavg << "\n" << muBavg << "\n" << nBavg;
++  thermal_average.close();
++
++  return;
++}
++
++
+ void FO_data_reader::read_surf_VAH_PLMatch(long FO_length, FO_surf * surface)
+ {
+   // vahydro: Dennis' version
+diff --git a/src/cpp/readindata.h b/src/cpp/readindata.h
+index 596cb2d..299a353 100644
+--- a/src/cpp/readindata.h
++++ b/src/cpp/readindata.h
+@@ -4,6 +4,7 @@
+ #include "iS3D.h"
+ #include "ParameterReader.h"
+ #include <fstream>
++#include <cstdint>
+ 
+ using namespace std;
+ 
+@@ -206,6 +207,7 @@ class FO_data_reader
+         void read_surf_VH_MUSIC(long length, FO_surf * surf_ptr);
+         void read_surf_VH_MUSIC_New(long length, FO_surf* surf_ptr);
+         void read_surf_VH_hiceventgen(long length, FO_surf* surf_ptr);
++        void read_surf_VH_MUSIC_3p1D(long length, FO_surf* surf_ptr);
+ };
+ 
+ 

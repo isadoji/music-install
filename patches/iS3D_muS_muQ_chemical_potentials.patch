@@ -1,0 +1,128 @@
+diff --git a/src/cpp/deltafReader.cpp b/src/cpp/deltafReader.cpp
+index 65fdaaa..1268bb7 100644
+--- a/src/cpp/deltafReader.cpp
++++ b/src/cpp/deltafReader.cpp
+@@ -572,6 +572,9 @@ void Deltaf_Data::compute_particle_densities(particle_info * particle_data, int
+ 
+   double alphaB = muB / T;
+   double baryon_enthalpy_ratio = nB / (E + P);
++  const double alphaS = QGP.strangeness_chemical_potential / T;   // muSQ patch
++  const double alphaQ = QGP.charge_chemical_potential / T;
++  printf("muSQ patch: (T, muB, muS, muQ) = (%lf, %lf, %lf, %lf) GeV\n", T, muB, QGP.strangeness_chemical_potential, QGP.charge_chemical_potential);
+ 
+   // gauss laguerre roots and weights
+   Gauss_Laguerre gla;
+@@ -597,10 +600,13 @@ void Deltaf_Data::compute_particle_densities(particle_info * particle_data, int
+     double baryon = (double)particle_data[i].baryon;
+     double sign = (double)particle_data[i].sign;
+     double mbar = mass / T;
++    // muSQ patch: total chem = B aB + S aS + Q aQ, passed as (alpha=chem, baryon=1)
++    const double chem = baryon * alphaB + particle_data[i].strange * alphaS + particle_data[i].charge * alphaQ;
++    const double one = 1.0;
+ 
+     // equilibrium density
+     double neq_fact = degeneracy * pow(T,3) / two_pi2_hbarC3;
+-    double neq = neq_fact * GaussThermal(neq_int, pbar_root1, pbar_weight1, pbar_pts, mbar, alphaB, baryon, sign);
++    double neq = neq_fact * GaussThermal(neq_int, pbar_root1, pbar_weight1, pbar_pts, mbar, chem, one, sign);
+ 
+     // bulk and diffusion density corrections
+     double dn_bulk = 0.0;
+@@ -621,10 +627,10 @@ void Deltaf_Data::compute_particle_densities(particle_info * particle_data, int
+         double J30_fact = degeneracy * pow(T,5) / two_pi2_hbarC3;
+         double J31_fact = degeneracy * pow(T,5) / two_pi2_hbarC3 / 3.0;
+ 
+-        double J10 =  J10_fact * GaussThermal(J10_int, pbar_root1, pbar_weight1, pbar_pts, mbar, alphaB, baryon, sign);
+-        double J20 = J20_fact * GaussThermal(J20_int, pbar_root2, pbar_weight2, pbar_pts, mbar, alphaB, baryon, sign);
+-        double J30 = J30_fact * GaussThermal(J30_int, pbar_root3, pbar_weight3, pbar_pts, mbar, alphaB, baryon, sign);
+-        double J31 = J31_fact * GaussThermal(J31_int, pbar_root3, pbar_weight3, pbar_pts, mbar, alphaB, baryon, sign);
++        double J10 =  J10_fact * GaussThermal(J10_int, pbar_root1, pbar_weight1, pbar_pts, mbar, chem, one, sign);
++        double J20 = J20_fact * GaussThermal(J20_int, pbar_root2, pbar_weight2, pbar_pts, mbar, chem, one, sign);
++        double J30 = J30_fact * GaussThermal(J30_int, pbar_root3, pbar_weight3, pbar_pts, mbar, chem, one, sign);
++        double J31 = J31_fact * GaussThermal(J31_int, pbar_root3, pbar_weight3, pbar_pts, mbar, chem, one, sign);
+ 
+         dn_bulk = ((c0 - c2) * mass * mass * J10 +  c1 * baryon * J20  +  (4.0 * c2 - c0) * J30);
+         // these coefficients need to be loaded.
+@@ -645,9 +651,9 @@ void Deltaf_Data::compute_particle_densities(particle_info * particle_data, int
+         double J11_fact = degeneracy * pow(T,3) / two_pi2_hbarC3 / 3.0;
+         double J20_fact = degeneracy * pow(T,4) / two_pi2_hbarC3;
+ 
+-        double J10 = J10_fact * GaussThermal(J10_int, pbar_root1, pbar_weight1, pbar_pts, mbar, alphaB, baryon, sign);
+-        double J11 = J11_fact * GaussThermal(J11_int, pbar_root1, pbar_weight1, pbar_pts, mbar, alphaB, baryon, sign);
+-        double J20 = J20_fact * GaussThermal(J20_int, pbar_root2, pbar_weight2, pbar_pts, mbar, alphaB, baryon, sign);
++        double J10 = J10_fact * GaussThermal(J10_int, pbar_root1, pbar_weight1, pbar_pts, mbar, chem, one, sign);
++        double J11 = J11_fact * GaussThermal(J11_int, pbar_root1, pbar_weight1, pbar_pts, mbar, chem, one, sign);
++        double J20 = J20_fact * GaussThermal(J20_int, pbar_root2, pbar_weight2, pbar_pts, mbar, chem, one, sign);
+ 
+         dn_bulk = (neq + (baryon * J10 * G) + (J20 * F / pow(T,2))) / betabulk;
+         dn_diff = (neq * T * baryon_enthalpy_ratio  -  baryon * J11) / betaV;
+diff --git a/src/cpp/readindata.cpp b/src/cpp/readindata.cpp
+index 42bb14f..9268e2d 100644
+--- a/src/cpp/readindata.cpp
++++ b/src/cpp/readindata.cpp
+@@ -96,6 +96,13 @@ void Plasma::load_thermodynamic_averages()
+ 
+   if(thermodynamic_file == NULL) printf("Error opening average thermodynamic file\n");
+   fscanf(thermodynamic_file, "%lf\n%lf\n%lf\n%lf\n%lf", &temperature, &energy_density, &pressure, &baryon_chemical_potential, &net_baryon_density);
++  strangeness_chemical_potential = 0.0;
++  charge_chemical_potential = 0.0;
++  if(fscanf(thermodynamic_file, "%lf\n%lf", &strangeness_chemical_potential, &charge_chemical_potential) != 2)
++  {
++    strangeness_chemical_potential = 0.0;
++    charge_chemical_potential = 0.0;
++  }
+   fclose(thermodynamic_file);
+ }
+ 
+@@ -848,6 +855,8 @@ void FO_data_reader::read_surf_VH_MUSIC_3p1D(long length, FO_surf* surf_ptr)
+   double Pavg = 0.0;
+   double muBavg = 0.0;
+   double nBavg = 0.0;
++  double muSavg = 0.0;
++  double muQavg = 0.0;
+   double total_surface_volume = 0.0;
+ 
+   float array[34];
+@@ -890,7 +899,7 @@ void FO_data_reader::read_surf_VH_MUSIC_3p1D(long length, FO_surf* surf_ptr)
+     double T    = array[13] * hbarC;     // GeV
+     double muB  = array[14] * hbarC;     // GeV
+     double muS  = array[15] * hbarC;     // GeV (unused downstream, kept for completeness)
+-    double muC  = array[16] * hbarC;     // GeV (unused downstream, kept for completeness)
++    double muC  = array[16] * hbarC;     // GeV (muSQ patch: averaged below)
+     double e_p_over_T = array[17];       // (e+p)/T, fm^-3, scale-invariant -- no hbarC needed
+     double P = e_p_over_T * T - E;       // reconstruct pressure, same relation as mode 6
+ 
+@@ -944,6 +953,8 @@ void FO_data_reader::read_surf_VH_MUSIC_3p1D(long length, FO_surf* surf_ptr)
+     Pavg += (P * dsigma_magnitude);
+     muBavg += (muB * dsigma_magnitude);
+     nBavg += (nB * dsigma_magnitude);
++    muSavg += (muS * dsigma_magnitude);
++    muQavg += (muC * dsigma_magnitude);
+   }
+   surfdat.close();
+ 
+@@ -952,9 +963,11 @@ void FO_data_reader::read_surf_VH_MUSIC_3p1D(long length, FO_surf* surf_ptr)
+   Pavg /= total_surface_volume;
+   muBavg /= total_surface_volume;
+   nBavg /= total_surface_volume;
++  muSavg /= total_surface_volume;
++  muQavg /= total_surface_volume;
+ 
+   ofstream thermal_average("average_thermodynamic_quantities.dat", ios_base::out);
+-  thermal_average << setprecision(15) << Tavg << "\n" << Eavg << "\n" << Pavg << "\n" << muBavg << "\n" << nBavg;
++  thermal_average << setprecision(15) << Tavg << "\n" << Eavg << "\n" << Pavg << "\n" << muBavg << "\n" << nBavg << "\n" << muSavg << "\n" << muQavg;
+   thermal_average.close();
+ 
+   return;
+diff --git a/src/cpp/readindata.h b/src/cpp/readindata.h
+index 299a353..30e5bf2 100644
+--- a/src/cpp/readindata.h
++++ b/src/cpp/readindata.h
+@@ -45,6 +45,8 @@ class Plasma
+     double pressure;                    // GeV / fm^3
+     double baryon_chemical_potential;   // GeV
+     double net_baryon_density;          // fm^-3
++    double strangeness_chemical_potential = 0.0; // GeV (muSQ patch)
++    double charge_chemical_potential = 0.0;      // GeV (muSQ patch)
+ 
+     Plasma();
+     void load_thermodynamic_averages();

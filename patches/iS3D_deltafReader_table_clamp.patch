@@ -1,0 +1,48 @@
+diff --git a/src/cpp/deltafReader.cpp b/src/cpp/deltafReader.cpp
+index 96a1e60..65fdaaa 100644
+--- a/src/cpp/deltafReader.cpp
++++ b/src/cpp/deltafReader.cpp
+@@ -411,11 +411,31 @@ double Deltaf_Data::calculate_bilinear(double ** f_data, double T, double muB, d
+ 
+ deltaf_coefficients Deltaf_Data::bilinear_interpolation(double T, double muB, double E, double P, double bulkPi)
+ {
++  // Clamp (T,muB) to the tabulated grid. Real 3+1D freeze-out surfaces (especially
++  // at reduced grid resolution) can contain a handful of outlier/corona cells whose
++  // local, per-cell T or muB falls just outside the delta-f coefficient table -- e.g.
++  // T slightly below T_min even though the surface-averaged (Tavg,muBavg) is well
++  // inside the table. Previously this aborted the whole sampling run over a single
++  // negligible-weight cell; clamp to the nearest table edge instead (small
++  // extrapolation error for that cell only) rather than exiting.
++  double T_max = T_min + dT * (points_T - 1);
++  double muB_max = muB_min + dmuB * (points_muB - 1);
++
++  double T_clamped = T;
++  if(T_clamped < T_min) T_clamped = T_min;
++  else if(T_clamped > T_max) T_clamped = T_max;
++
++  double muB_clamped = muB;
++  if(muB_clamped < muB_min) muB_clamped = muB_min;
++  else if(muB_clamped > muB_max) muB_clamped = muB_max;
++
+   // left and right T, muB indices
+-  int iTL = (int)floor((T - T_min) / dT);
++  int iTL = (int)floor((T_clamped - T_min) / dT);
++  if(iTL >= points_T - 1) iTL = points_T - 2;
+   int iTR = iTL + 1;
+ 
+-  int imuBL = (int)floor((muB - muB_min) / dmuB);
++  int imuBL = (int)floor((muB_clamped - muB_min) / dmuB);
++  if(imuBL >= points_muB - 1) imuBL = points_muB - 2;
+   int imuBR = imuBL + 1;
+ 
+   double TL, TR, muBL, muBR;
+@@ -433,6 +453,9 @@ deltaf_coefficients Deltaf_Data::bilinear_interpolation(double T, double muB, do
+     muBR = muB_array[imuBR];
+   }
+ 
++  T = T_clamped;
++  muB = muB_clamped;
++
+   deltaf_coefficients df;
+ 
+   switch(df_mode)
