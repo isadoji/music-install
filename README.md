@@ -373,7 +373,9 @@ están vendorizados en este repo (`patches/`, `install_*.sh`,
 automáticamente. `be/` (Python C2/C3) sigue viviendo en el repo `music` y sus
 fixes se listan aquí solo para referencia; hay que aplicarlos a mano en ese
 checkout. Ver también §9 para el flujo completo de instalación desde cero y
-el chequeo de sanidad end-to-end.
+el chequeo de sanidad end-to-end, y §10 para la Skill `hic-chain`
+(estas mismas trampas como instrucciones para Claude Code, más checks
+automáticos).
 
 ### 8.1 MUSIC (core)
 
@@ -419,6 +421,7 @@ el chequeo de sanidad end-to-end.
 | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Falla de compilación con gfortran ≥ 10 (`Type mismatch`, `Rank mismatch`, etc.)             | UrQMD 3.4 es Fortran legacy; gfortran ≥10 endureció el chequeo de tipos/argumentos por defecto                                                             | `./install_urqmd.sh` (este repo) descarga el tar de `urqmd.org` y aplica `patches/urqmd_Linux.mk.patch` automáticamente — agrega `-std=legacy -fallow-argument-mismatch -ffixed-line-length-none` antes de compilar |
 | `tar: This does not look like a tar archive` al correr `install_urqmd.sh` (descarga "exitosa") | **`urqmd.org` ya no sirve `urqmd-3.4.tar` directo**: el dominio entero redirige (301→301→200) a la página personal del mantenedor en `itp.uni-frankfurt.de`, que hoy solo publica **UrQMD 4.0** (`.tar.gz`); `curl -f` no detecta el problema porque la página de aterrizaje responde HTTP 200, no 404 — descarga HTML en vez del tar | `install_urqmd.sh` ahora valida el archivo descargado con `tar tf` y falla con mensaje claro en vez de dejar que `tar xf` falle críptico (fix aplicado 2026-10-01). El tar 3.4 ya no es descargable automáticamente: conseguirlo a mano (pedirlo a `urqmd@urqmd.org`) o copiarlo desde un checkout que ya lo tenga — hay una copia verificada en `doramilaje:~/github/urqmd/urqmd-3.4.tar` (213MB, no vendorizable en este repo por la licencia de urqmd.org, igual que la tabla 2DTExS antes de ser vendorizada) — y colocarlo en `<URQMD_DIR>/../urqmd-3.4.tar` antes de correr el script (lo detecta y se salta la descarga) |
+| Todos los eventos de una campaña de centralidad salen con el **mismo b** (p. ej. b=3.77 fm exacto en vez de distribuido en [0, 3.77]) | `input.f:686`: `imp X` (minúscula, X>0) fija b=X en todos los eventos; solo `imp -X` o `IMP bmin bmax` (mayúscula, `input.f:701`) sortean b. Mordió las 3 campañas de centralidad fija (2026-10-22) | usar `IMP 0.0 <bmax>`; verificar con `skills/hic-chain/checks/check_urqmd_input.sh` antes y `check_b_range.sh <f19> 0 <bmax>` después (§10) |
 | `f19` sale vacío (0 eventos) aunque el input lo pide explícitamente                        | **la bandera está invertida**: listar una unidad de salida (`fXX`) en el input de UrQMD la **suprime** (`bfXX=.true.` → no escribe), no la habilita       | para quedarte solo con `f19`, listar las que **no** quieres en el input: `f13 f14 f15 f16 f18 f20` (deja f19/f20 según convenga) — NO listar `f19` directamente |
 | Pérdida de eventos por chunk (3–43% según config) en el afterburner, atribuida por error a OOM | UrQMD 3.4 aborta con `stop 137` desde `anndec.f:285` (`anndex(dec)`, ityp 139, m=2.112 GeV, sin canal de decaimiento — todas las probabilidades de rama en cero); es un exit code propio de UrQMD, NO memoria (algún comentario en scripts SLURM que dice "OOM" está equivocado) | reconocer `stop 137` como crash interno de UrQMD, no OOM; mitigar corriendo en chunks pequeños con reintento/skip del evento que crashea en vez de perder el resto del chunk (no implementado aún como fix automático) |
 | Radios/λ de HBT con un dip artificial cerca de q≈30 MeV/c | conversión `f14`→f19-nativo introducía un artefacto (Bug #1) | usar la salida `f19` nativa de UrQMD directamente, no convertir desde `f14` |
@@ -501,3 +504,127 @@ de §8 que no tienen su propio `install_*.sh` en este repo), está en
 [`install_xook_fullchain.pdf`](install_xook_fullchain.pdf) — escrita
 originalmente para un checkout nuevo en `xook`, pero aplica a cualquier
 máquina nueva.
+
+---
+
+## 10. Skill de Claude Code: `hic-chain`
+
+Este repo trae una **Skill** de Claude Code en
+[`skills/hic-chain/`](skills/hic-chain/). Es la versión "para Claude" de §8:
+las trampas de la cadena (UrQMD `imp`/`IMP`, CRAB3 columna 1 = Qinv, unidades
+de `be/`, parches de iS3D/MUSIC, reglas del cluster) escritas como
+instrucciones que Claude lee **antes** de escribir un input, un script slurm o
+un análisis, más unos checks deterministas que detectan los errores mecánicos.
+
+### 10.1 Qué es una Skill y cómo se carga
+
+Una Skill es un directorio con un archivo `SKILL.md`. Su encabezado
+(frontmatter) tiene un `name` y una `description`. Claude Code busca Skills en
+`~/.claude/skills/<nombre>/` (personales, valen en cualquier proyecto) y en
+`<repo>/.claude/skills/<nombre>/` (del proyecto).
+
+La carga es por niveles, para no gastar contexto:
+
+1. **Siempre:** solo el `name` y la `description` están a la vista de Claude.
+2. **Cuando la tarea coincide con la `description`** (p. ej. "escribe el
+   input de UrQMD para 0–5%"), Claude carga el cuerpo de `SKILL.md`: el
+   resumen de reglas y la tabla de qué referencia leer.
+3. **Solo si hace falta**, Claude lee `references/<código>.md` (el detalle,
+   con números de línea y evidencia) y corre los `checks/`.
+
+También se puede forzar a mano escribiendo `/hic-chain` en el prompt de
+Claude Code, o pedir "usa la skill hic-chain".
+
+### 10.2 Dónde vive y el symlink
+
+La fuente vive **en este repo** (versionada con git). Claude la encuentra a
+través de un symlink:
+
+```
+~/.claude/skills/hic-chain  ->  ~/github/music-install/skills/hic-chain
+```
+
+Así, editar `skills/hic-chain/...` en el repo cambia la Skill de inmediato (no
+hay que copiar nada), y `git pull` en otra máquina la actualiza.
+
+**Crear el symlink (máquina nueva, o si se borró):**
+
+```bash
+cd ~/github/music-install
+./skills/install_skills.sh        # idempotente: enlaza cada skills/*/SKILL.md
+# equivalente a mano:
+mkdir -p ~/.claude/skills
+ln -s ~/github/music-install/skills/hic-chain ~/.claude/skills/hic-chain
+```
+
+**Comprobar que está:** `ls -la ~/.claude/skills/` debe mostrar
+`hic-chain -> .../music-install/skills/hic-chain`. Si el repo se mueve de
+lugar, el symlink queda roto: bórralo (`rm ~/.claude/skills/hic-chain`, borra
+solo el enlace, no el repo) y vuelve a correr `install_skills.sh`. Una sesión
+de Claude Code ya abierta puede necesitar reiniciarse para ver una Skill
+nueva.
+
+### 10.3 Estructura
+
+```
+skills/
+├── install_skills.sh          crea los symlinks en ~/.claude/skills/
+└── hic-chain/
+    ├── SKILL.md               frontmatter + 10 reglas + tabla de referencias
+    ├── references/
+    │   ├── urqmd.md           imp/IMP, banderas fNN invertidas, f19 vs f14, stop 137
+    │   ├── music.md           clamp de strings, EOS 9/14/20, s_factor, modo 4
+    │   ├── is3d.md            los 5 parches, señal "muSQ patch", formato de eventos
+    │   ├── crab3_be.md        columna 1 = Qinv, config de producción, unidades de be/
+    │   └── cluster.md         sbatch sin --time, CPUs, python, corridas de referencia
+    └── checks/
+        ├── check_urqmd_input.sh   ERROR si `imp X` (b fijo); avisa si `f19` listado
+        ├── check_b_range.sh       b de un f19/f14 dentro de [bmin,bmax] y no constante
+        ├── check_crab3_qinv.sh    ERROR si `2*d[:,0]` en un script que lee CRAB3
+        ├── check_ref_protected.sh se niega a escribir en una referencia o dir no vacío
+        ├── protected_refs.txt     lista de corridas de referencia (editar a mano)
+        └── run_all.sh             urqmd + crab3 sobre un árbol de scripts
+```
+
+### 10.4 Correr los checks (también sirven sin Claude)
+
+```bash
+S=~/.claude/skills/hic-chain/checks
+$S/check_urqmd_input.sh scripts/slurm_urqmd_cascade_0-5.sh    # exit 1 si hay `imp X`
+$S/check_b_range.sh output/urqmd_task_000.f19 0 3.77          # después de la cascada
+$S/check_crab3_qinv.sh ~/github/music                         # exit 1 si `2*d[:,0]`
+$S/check_ref_protected.sh "$NUEVO_DIR" || exit 1              # en un launcher
+$S/run_all.sh ~/github/music/BiBi_cascade_5.8GeV_corecorona/eos2x2_0-5/scripts
+```
+
+Los checks son bash + awk, no requieren Python, y corren igual en
+doramilaje y en acaxees (copiarlos o leerlos por NFS). Validados el
+2026-10-23: `check_urqmd_input` sobre los scripts de cascada reales (ok) y
+uno con `imp 3.77` (ERROR); `check_b_range` sobre el f19 del piloto b<1
+(106 eventos, b 0.16–1.00, media 0.73 ok; rango [0,0.5] ERROR; b constante
+ERROR); `check_crab3_qinv` sobre todo `music` (0 errores, quedan WARN en
+scripts AuAu200 con `2.0*k if reduced_mom`, que son la convención
+REDUCED_MOM y deben revisarse a mano).
+
+### 10.5 Agregar una trampa nueva
+
+Cuando aparezca un bug nuevo en la cadena:
+
+1. Agrégalo a la tabla de §8.x de este README (como siempre).
+2. Agrégalo a `skills/hic-chain/references/<código>.md`: síntoma, causa,
+   fix, cómo verificarlo, y la fecha.
+3. Si es una regla que nunca se debe romper, súmala a la lista corta de
+   `SKILL.md`.
+4. Si se puede detectar mecánicamente (un patrón en un input o un script,
+   un valor fuera de rango en una salida), escribe un check nuevo en
+   `checks/` que salga con código ≠0 en error, pruébalo contra un caso bueno
+   real y uno malo fabricado, y añádelo a `run_all.sh` si es estático.
+5. Cuando una corrida pase a ser referencia, agrega su ruta a
+   `checks/protected_refs.txt`.
+6. `git commit` + `git push` en music-install; las otras máquinas lo reciben
+   con `git pull` (el symlink no cambia).
+
+Para editar la `description` (lo que decide cuándo se carga sola): debe decir
+qué códigos cubre y cuándo cargarla, en una o dos frases. Si Claude no la
+carga cuando debería, hacer la `description` más específica (nombrar el
+código o el archivo) o invocarla con `/hic-chain`.

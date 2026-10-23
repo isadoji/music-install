@@ -1,0 +1,17 @@
+# Corridas de referencia protegidas (rutas absolutas, una por linea, # = comentario).
+# check_ref_protected.sh rechaza escribir dentro de cualquiera de estas.
+# Agregar aqui cada corrida que pase a ser referencia.
+
+# Bi+Bi 5.8 GeV: cascada UrQMD pura b<1 fm (calibracion s_factor, pi+ dN/dy 85.76)
+/storage/isadoji/music/BiBi_cascade_5.8GeV/pilot_100k_f19
+# Bi+Bi 5.8 GeV core-corona: produccion 1M postfix (MUSIC con clamp de strings)
+/storage/isadoji/music/BiBi_cascade_5.8GeV_corecorona/postfix_production_1M_core
+/storage/isadoji/music/BiBi_cascade_5.8GeV_corecorona/postfix_production_1M_nosplit
+/storage/isadoji/music/BiBi_cascade_5.8GeV_corecorona/postfix_production_1M_core_density
+/storage/isadoji/music/BiBi_cascade_5.8GeV_corecorona/postproc/postfix_1M
+# Bi+Bi 5.8 GeV 0-5% (campana eos2x2_0-5, lanzada 2026-10-23)
+/storage/isadoji/music/BiBi_cascade_5.8GeV_corecorona/eos2x2_0-5/cascade_0-5_urqmd
+/storage/isadoji/music/BiBi_cascade_5.8GeV_corecorona/eos2x2_0-5/nosplit_neos
+/storage/isadoji/music/BiBi_cascade_5.8GeV_corecorona/eos2x2_0-5/nosplit_2dt
+/storage/isadoji/music/BiBi_cascade_5.8GeV_corecorona/eos2x2_0-5/core_neos
+/storage/isadoji/music/BiBi_cascade_5.8GeV_corecorona/eos2x2_0-5/core_2dt
