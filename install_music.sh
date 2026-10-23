@@ -12,7 +12,10 @@
 # Qué hace:
 #   1. Verifica que estén las dependencias (g++, cmake, libgsl-dev, OpenMP)
 #      ANTES de compilar, para no terminar con un binario a medias.
-#   2. Clona MUSIC-fluid/MUSIC (si el directorio ya existe, hace git pull).
+#   2. Clona MUSIC-fluid/MUSIC y fija el commit de producción MUSIC_COMMIT
+#      (1fd9f40, el de acaxees/doramilaje: los parches de apply_music_fixes.sh
+#      y apply_2dtexs.sh se generaron contra él; upstream ya avanzó a 85f4351
+#      y un clone sin fijar instalaba otra versión, visto en itzalan 2026-10-23).
 #   3. Compila con cmake + make, revisando el código de salida real de cada
 #      paso (nada de "make ... | tail -6": eso esconde errores de
 #      compilación reales detrás de un pipe que siempre sale con éxito).
@@ -24,6 +27,7 @@ set -euo pipefail
 
 MUSIC_DIR="${1:-$HOME/Software/MUSIC}"
 MUSIC_REPO="https://github.com/MUSIC-fluid/MUSIC.git"
+MUSIC_COMMIT="1fd9f40"
 
 echo "================================================"
 echo "  Instalando MUSIC (sin parches de EOS)"
@@ -60,12 +64,13 @@ echo "  ✓ g++, cmake, git, libgsl-dev (headers) presentes"
 echo ""
 echo "── Obteniendo código fuente ──"
 if [[ -d "$MUSIC_DIR/.git" ]]; then
-    echo "  Ya existe un clone en $MUSIC_DIR, actualizando..."
-    git -C "$MUSIC_DIR" pull --ff-only
+    echo "  Ya existe un clone en $MUSIC_DIR"
 else
     mkdir -p "$(dirname "$MUSIC_DIR")"
     git clone "$MUSIC_REPO" "$MUSIC_DIR"
 fi
+git -C "$MUSIC_DIR" checkout -q "$MUSIC_COMMIT"
+echo "  ✓ MUSIC en $(git -C "$MUSIC_DIR" log --oneline -1)"
 
 # ── 3. Compilar ───────────────────────────────────────────────────────────────
 echo ""
