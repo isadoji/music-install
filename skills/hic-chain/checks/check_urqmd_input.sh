@@ -6,6 +6,12 @@
 #   WARN   `f19` listado        -> f19 queda SUPRIMIDO (listar fNN apaga la salida)
 #   info   resumen de las salidas fNN suprimidas
 #   WARN   sin imp/IMP          -> b por defecto de UrQMD
+#   WARN   sin rsd              -> semilla = time() en segundos: tareas
+#                                  concurrentes con el mismo input dan
+#                                  eventos IDENTICOS (verificado 2026-10-23)
+#   WARN   `rsd N` numerico     -> misma semilla en todas las tareas, salvo
+#                                  que el launcher la reemplace por tarea
+#   ok     `rsd $VAR`           -> semilla por tarea
 # Solo mira lineas que parecen keywords de UrQMD (keyword + espacios + valor
 # al inicio de linea). Ver references/urqmd.md.
 #
@@ -31,6 +37,16 @@ for f in "$@"; do
         echo "$f:$n: ok   \`$line\`"
     done
     grep -qE '^(imp|IMP)[[:space:]]+' "$f" || echo "$f: WARN no hay imp/IMP: b por defecto de UrQMD"
+    if ! grep -qE '^rsd[[:space:]]+' "$f"; then
+        echo "$f: WARN no hay rsd: semilla = time() en segundos, tareas concurrentes con el mismo input dan eventos identicos; usa \`rsd \$((BASE + SLURM_ARRAY_TASK_ID))\`"
+    fi
+    grep -nE '^rsd[[:space:]]+' "$f" | while IFS=: read -r n line; do
+        if grep -qE '^rsd[[:space:]]+-?[0-9]+[[:space:]]*(#.*)?$' <<<"$line"; then
+            echo "$f:$n: WARN \`$line\` semilla fija: correcto solo si el launcher la reemplaza por tarea (p. ej. awk 12345+TASK_ID); si no, todas las tareas dan los mismos eventos"
+        else
+            echo "$f:$n: ok   \`$line\`"
+        fi
+    done
     grep -nE '^f19([[:space:]]|$)' "$f" | while IFS=: read -r n line; do
         echo "$f:$n: WARN \`f19\` listado SUPRIME el f19 (listar fNN la apaga, no la pide)"
     done

@@ -103,3 +103,13 @@ Trampa vieja: `~/Software/UrQMD/prueba-slurm/` (PBS, `rsd 12345` fijo para
 
 Gotcha de build: el target de make es el propio `urqmd.e`; si existe, `make`
 no recompila aunque `src/` cambie. Borrarlo antes.
+
+Máquina nueva: `./install_afterburner.sh <dir>`. Clona bitbucket en `09eeac2`
+o, si no responde, usa `vendor/urqmd_afterburner-09eeac2.tar.gz`; aplica los
+3 parches, genera `tables.dat` y corre un autotest de `URQMD_RSEED`. Misma
+semilla y misma entrada dan f19 byte-idéntico en doramilaje, acaxees y una
+instalación vendorizada (verificado 2026-10-23). Checks:
+`checks/check_afterburner_seed.sh [--bin <dir_afterburner>] <scripts|dir>`
+(ERROR si un script corre `./urqmd.e` sin `URQMD_RSEED` o si el binario no
+trae el parche); `check_urqmd_input.sh` avisa en cascadas sin `rsd` o con
+`rsd` fijo.

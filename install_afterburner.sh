@@ -27,6 +27,12 @@
 # "unformatted" = dependiente del sistema: se genera en la máquina destino,
 # no se copia).
 #
+# Fuente: clone de bitbucket en 09eeac2; si bitbucket no responde, usa la
+# copia vendorizada vendor/urqmd_afterburner-09eeac2.tar.gz (git archive del
+# mismo commit), así la instalación no depende de que el upstream siga vivo
+# (urqmd.org ya dejó de servir el tar 3.4). Al final corre un autotest que
+# falla si el binario ignora URQMD_RSEED.
+#
 # Uso:
 #   ./install_afterburner.sh [directorio_instalacion]
 # Por defecto instala en $HOME/Software/urqmd_afterburner.
@@ -38,6 +44,7 @@ AB_DIR="${1:-$HOME/Software/urqmd_afterburner}"
 AB_REPO="https://bitbucket.org/Chunshen1987/urqmd_afterburner.git"
 AB_COMMIT="09eeac2"
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+AB_VENDOR="$PROJECT_DIR/vendor/urqmd_afterburner-${AB_COMMIT}.tar.gz"
 
 echo "================================================"
 echo "  Instalando urqmd_afterburner (${AB_COMMIT})"
@@ -45,19 +52,29 @@ echo "  Destino: ${AB_DIR}"
 echo "================================================"
 
 missing=()
-for c in gfortran make git patch; do command -v $c >/dev/null 2>&1 || missing+=("$c"); done
+for c in gfortran make patch; do command -v $c >/dev/null 2>&1 || missing+=("$c"); done
 if [[ ${#missing[@]} -gt 0 ]]; then
     echo "ERROR: faltan dependencias: ${missing[*]}"; exit 1
 fi
 
-# ── 1. Clonar en el commit de producción ────────────────────────────────────
+# ── 1. Fuente en el commit de producción ────────────────────────────────────
 if [[ -d "$AB_DIR/.git" ]]; then
     echo "  Ya existe un clone en $AB_DIR"
+    git -C "$AB_DIR" checkout -q "$AB_COMMIT"
+elif [[ -f "$AB_DIR/urqmd/src/init.f" ]]; then
+    echo "  Ya existe una copia (vendorizada) en $AB_DIR"
 else
     mkdir -p "$(dirname "$AB_DIR")"
-    git clone "$AB_REPO" "$AB_DIR"
+    if command -v git >/dev/null 2>&1 && timeout 60 git clone -q "$AB_REPO" "$AB_DIR" 2>/dev/null; then
+        git -C "$AB_DIR" checkout -q "$AB_COMMIT"
+        echo "  ✓ clonado de bitbucket (${AB_COMMIT})"
+    else
+        rm -rf "$AB_DIR"
+        echo "  bitbucket no disponible: uso la copia vendorizada $(basename "$AB_VENDOR")"
+        mkdir -p "$AB_DIR"
+        tar -xzf "$AB_VENDOR" -C "$AB_DIR" --strip-components=1
+    fi
 fi
-git -C "$AB_DIR" checkout -q "$AB_COMMIT"
 
 # ── 2. Parches (idempotentes) ───────────────────────────────────────────────
 cd "$AB_DIR"
@@ -104,6 +121,21 @@ else
     [[ -s "$T/tables.dat" ]] || { echo "ERROR: no se generó tables.dat (ver $T/gen.log)"; exit 1; }
     mv "$T/tables.dat" urqmd/tables.dat; rm -rf "$T"
     echo "  ✓ tables.dat generado"
+fi
+
+# ── 5. Autotest de la semilla ───────────────────────────────────────────────
+# El binario debe reconocer URQMD_RSEED (si no, los scripts de producción
+# abortan, pero mejor enterarse aquí). Corrida con lista vacía: basta con que
+# uinit imprima la semilla.
+grep -aq URQMD_RSEED urqmd/urqmd.e || { echo "ERROR: urqmd.e sin el parche URQMD_RSEED"; exit 1; }
+T=$(mktemp -d)
+ln -s "$AB_DIR/urqmd/tables.dat" "$T/tables.dat"
+cp urqmd/urqmd.e urqmd/uqmd.burner "$T/"; : > "$T/OSCAR.input"
+( cd "$T" && URQMD_RSEED=12345 URQMD_TAB=tables.dat ftn09=uqmd.burner ftn10=OSCAR.input ./urqmd.e > seed.log 2>&1 || true )
+if grep -aq "fixed random number" "$T/seed.log"; then
+    echo "  ✓ autotest: URQMD_RSEED reconocida"; rm -rf "$T"
+else
+    echo "ERROR: urqmd.e no reportó 'fixed random number' con URQMD_RSEED=12345 (ver $T/seed.log)"; exit 1
 fi
 
 echo ""

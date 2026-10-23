@@ -47,6 +47,7 @@ un error):
 S=~/.claude/skills/hic-chain/checks
 $S/check_urqmd_input.sh  <inputfile o slurm script con heredoc>...
 $S/check_crab3_qinv.sh   <script(s) .py o directorio>
+$S/check_afterburner_seed.sh [--bin <dir_afterburner>] <script(s) o directorio>
 $S/check_ref_protected.sh <directorio de salida nuevo>...
 $S/check_b_range.sh      <f19|f14> <bmin> <bmax>     # después de correr
 $S/run_all.sh            <directorio con scripts>   # urqmd + crab3 juntos
