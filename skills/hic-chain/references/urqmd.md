@@ -86,7 +86,20 @@ Fix: `patches/urqmd_afterburner_rseed_env.patch`, `uinit` lee
 `URQMD_RSEED>0` del entorno. Log: `fixed random number: N`. Los scripts deben
 pasar una semilla única por chunk (p. ej. `slurm_afterburner_provenance_pipm.sh`:
 `AB_SEED_BASE + TASK_ID*100000 + chunk + 1`) y abortar si el log no la muestra.
-Las cascadas normales no tienen el problema: ahí `rsd` sí se lee a tiempo.
+Cascadas normales (`urqmd-3.4`, `-lhc`, `-Bfield`, 4.0: mismo código de
+semilla, md5 idéntico entre las tres 3.4 de acaxees y local): ahí `rsd` sí
+se lee a tiempo, **pero si el input no trae `rsd`** se siembra con `time()`
+en segundos y tareas concurrentes con el mismo input dan **eventos
+idénticos** (verificado 2026-10-23: 4 corridas Bi+Bi concurrentes, las 2 sin
+`rsd` salieron byte-idénticas). Regla: semilla única por tarea
+(`rsd $((BASE + SLURM_ARRAY_TASK_ID))`), nunca un `rsd` fijo compartido.
+Auditado 2026-10-23: music, centralidad (Bi11MB, Bi11_*) y Bfield
+(BiBi wave/nowave, Au200, Pb5TeV) usan `12345 + TASK_ID`, sin semillas
+repetidas dentro de una campaña. La misma semilla entre energías/
+centralidades/wave-nowave reusa el flujo con otra física (no son
+duplicados; para wave vs nowave es incluso una comparación pareada).
+Trampa vieja: `~/Software/UrQMD/prueba-slurm/` (PBS, `rsd 12345` fijo para
+100 jobs) daría 100 copias idénticas si se reusa.
 
 Gotcha de build: el target de make es el propio `urqmd.e`; si existe, `make`
 no recompila aunque `src/` cambie. Borrarlo antes.
