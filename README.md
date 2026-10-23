@@ -473,6 +473,27 @@ cd music-install
 Todos aceptan el directorio de destino como primer argumento (p. ej.
 `/software/mexnica/MUSIC/<componente>` en itzalan) y son idempotentes.
 
+**Versiones fijas.** Cada instalador hace `checkout` a un commit fijo, el de
+producción en acaxees/doramilaje; nunca `git pull`. Los parches de `patches/`
+se generaron contra esos commits, y un clone sin fijar instalaba otra
+versión en silencio (MUSIC upstream ya va en `85f4351`, visto en itzalan
+2026-10-23):
+
+| componente   | fuente                                  | versión fija                         | variable en el script |
+| ------------ | --------------------------------------- | ------------------------------------ | --------------------- |
+| MUSIC        | github MUSIC-fluid/MUSIC                | `1fd9f40`                            | `MUSIC_COMMIT`        |
+| 3dMCGlauber  | github chunshen1987/3dMCGlauber         | `b6059e2`                            | `GLAUBER_COMMIT`      |
+| iS3D         | github derekeverett/iS3D                | `ede5cd4`                            | `IS3D_COMMIT`         |
+| CRAB3        | github chunshen1987/crab3               | `7e885f5`                            | `CRAB3_COMMIT`        |
+| afterburner  | bitbucket Chunshen1987/urqmd_afterburner | `09eeac2` (+ `vendor/` de respaldo)  | `AB_COMMIT`           |
+| UrQMD 3.4    | tar (urqmd.org ya no lo sirve)          | `urqmd-3.4.tar`, md5 `7b858c35118313bce02b3407d95a82fd` | n/a |
+| LHAPDF (opcional, `WITH_LHAPDF=1`) | `utilities/` de 3dMCGlauber | 6.2.1 + pdfset CT10nnlo | n/a |
+
+Para actualizar un componente: revisar el diff de upstream contra la versión
+fija, cambiar la variable, reinstalar en un directorio **nuevo**, comprobar
+que todos los parches apliquen y validar contra una corrida de referencia
+(nunca sobre la instalación de producción).
+
 Cada `install_*.sh` descarga/clona la fuente correspondiente, aplica los
 parches necesarios de `patches/` (ver §8 para el detalle de cada bug) y
 verifica que el binario final quede compilado y ejecutable.

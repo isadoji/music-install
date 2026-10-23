@@ -63,21 +63,20 @@ echo "  ✓ g++, cmake, git, patch presentes"
 echo ""
 echo "── Obteniendo código fuente ──"
 if [[ -d "$IS3D_DIR/.git" ]]; then
-    echo "  Ya existe un clone en $IS3D_DIR, actualizando..."
-    git -C "$IS3D_DIR" pull --ff-only
+    echo "  Ya existe un clone en $IS3D_DIR"
 else
     mkdir -p "$(dirname "$IS3D_DIR")"
     git clone "$IS3D_REPO" "$IS3D_DIR"
 fi
+# Commit fijo: los 5 parches se generaron contra él (antes solo se avisaba
+# si el clone estaba en otro commit). Con el árbol ya parchado el checkout
+# conserva los cambios locales (mismo commit, nada que mover).
+git -C "$IS3D_DIR" checkout -q "$IS3D_COMMIT"
+echo "  ✓ iS3D en $(git -C "$IS3D_DIR" log --oneline -1)"
 
 # ── 3. Parches ───────────────────────────────────────────────────────────────
 echo ""
 echo "── Aplicando parches ──"
-HEAD_NOW=$(git -C "$IS3D_DIR" rev-parse --short HEAD)
-if [[ "$HEAD_NOW" != "$IS3D_COMMIT"* ]]; then
-    echo "  AVISO: el clone está en $HEAD_NOW, los parches se generaron contra $IS3D_COMMIT."
-    echo "         Si alguno falla: git -C $IS3D_DIR checkout $IS3D_COMMIT"
-fi
 
 # 3.1 bilinear (formato antiguo: diff de un solo archivo, se aplica con ruta explícita)
 DFR="$IS3D_DIR/src/cpp/deltafReader.cpp"
