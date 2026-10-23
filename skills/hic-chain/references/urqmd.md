@@ -2,7 +2,7 @@
 
 Binarios en el cluster:
 - cascada: `/storage/software/urqmd/urqmd-3.4/urqmd.x86_64`
-- afterburner (osc2u + urqmd.e + tables.dat): `/storage/software/urqmd/urqmd_afterburner` (acaxees); instalar en otra máquina con `install_afterburner.sh` (parche frr*, Bug #2)
+- afterburner (osc2u + urqmd.e + tables.dat): `/storage/software/urqmd/urqmd_afterburner` (acaxees); instalar en otra máquina con `install_afterburner.sh` (parches frr*, Bug #2, y `URQMD_RSEED`, §7)
 - fuente local de referencia: `~/Software/UrQMD/urqmd-3.4/` (`input.f`, `output.f`, `anndec.f`)
 
 ## 1. Parámetro de impacto: `imp` vs `IMP`
@@ -67,3 +67,26 @@ y devuelve HTML con HTTP 200). Copia verificada:
 
 `music/BiBi_cascade_5.8GeV_corecorona/eos2x2_0-5/scripts/f19_native_to_oscar1997a_pid.awk -v PID=<pdg>`;
 para PID=211 es byte-idéntico al convertidor original.
+
+## 7. Semilla del afterburner: `rsd` no funciona
+
+En modo old-event (afterburner, `CTOption(40)=2`), `input()` retorna antes
+de leer el burner (`input.f:454`), así que `uinit` ve `ranseed=0`,
+`fixedseed=.false.`, y cada evento re-siembra con `time()` en **segundos**
+(`urqmd.f:66-68`, `gnuranf.f`). Procesos que arrancan un evento en el mismo
+segundo dan salida **byte-idéntica** para la misma entrada (verificado
+2026-10-23; `rsd 4242` vs `rsd 777` concurrentes: idénticos). Poner la
+semilla en la cabecera `event#` de `OSCAR.input` tampoco basta: se lee en
+`getoldevent`, después de decidir `fixedseed`. (Si se edita esa cabecera,
+el formato 302 es `(a7,i9,a13,i12,...)`: semilla en columnas 30–41; correr
+un carácter rompe la lectura de partículas con
+`pdgid: Negative ITYP not allowed`.)
+
+Fix: `patches/urqmd_afterburner_rseed_env.patch`, `uinit` lee
+`URQMD_RSEED>0` del entorno. Log: `fixed random number: N`. Los scripts deben
+pasar una semilla única por chunk (p. ej. `slurm_afterburner_provenance_pipm.sh`:
+`AB_SEED_BASE + TASK_ID*100000 + chunk + 1`) y abortar si el log no la muestra.
+Las cascadas normales no tienen el problema: ahí `rsd` sí se lee a tiempo.
+
+Gotcha de build: el target de make es el propio `urqmd.e`; si existe, `make`
+no recompila aunque `src/` cambie. Borrarlo antes.

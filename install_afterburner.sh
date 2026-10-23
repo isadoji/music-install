@@ -13,6 +13,15 @@
 #     (listar fNN SUPRIME esa salida; ver skills/hic-chain/references/urqmd.md).
 #     Los scripts de producción escriben su propio uqmd.burner, esto solo
 #     corrige el de ejemplo.
+#   - urqmd_afterburner_rseed_env.patch: semilla fija vía la variable de
+#     entorno URQMD_RSEED>0. En modo old-event (afterburner) `rsd` NO
+#     funciona: input() retorna antes de leer el burner (input.f:454), el
+#     burner se relee por evento en getoldevent, y para entonces uinit ya
+#     decidió fixedseed=.false.; cada evento re-siembra con time() en
+#     segundos (urqmd.f:66-68), así que procesos que arrancan en el mismo
+#     segundo comparten el flujo aleatorio (verificado: salidas idénticas
+#     byte a byte). Con URQMD_RSEED, salida reproducible; sin ella, igual
+#     que antes.
 #
 # Al final genera urqmd/tables.dat (tabla de anchos de decaimiento, binaria
 # "unformatted" = dependiente del sistema: se genera en la máquina destino,
@@ -52,11 +61,18 @@ git -C "$AB_DIR" checkout -q "$AB_COMMIT"
 
 # ── 2. Parches (idempotentes) ───────────────────────────────────────────────
 cd "$AB_DIR"
+PATCHED=0
 if grep -q "frrx(i)=rx(i)" urqmd/src/output.f; then
     echo "  ✓ frr seed ya aplicado"
 else
     patch -p1 < "$PROJECT_DIR/patches/urqmd_afterburner_frr_seed.patch"
-    echo "  ✓ frr seed aplicado"
+    echo "  ✓ frr seed aplicado"; PATCHED=1
+fi
+if grep -q "URQMD_RSEED" urqmd/src/init.f; then
+    echo "  ✓ URQMD_RSEED ya aplicado"
+else
+    patch -p1 < "$PROJECT_DIR/patches/urqmd_afterburner_rseed_env.patch"
+    echo "  ✓ URQMD_RSEED aplicado"; PATCHED=1
 fi
 if grep -qx "f19" urqmd/uqmd.burner; then
     patch -p1 < "$PROJECT_DIR/patches/urqmd_afterburner_burner_keep_f19.patch"
@@ -66,6 +82,9 @@ else
 fi
 
 # ── 3. Compilar ─────────────────────────────────────────────────────────────
+# El target de make es el propio urqmd.e: si existe, no recompila aunque
+# src/ haya cambiado. Tras parchar hay que borrarlo.
+[[ $PATCHED -eq 1 ]] && rm -f urqmd/urqmd.e osc2u/osc2u.e
 make -s
 [[ -x osc2u/osc2u.e && -x urqmd/urqmd.e ]] || { echo "ERROR: faltan ejecutables"; exit 1; }
 echo "  ✓ osc2u/osc2u.e  urqmd/urqmd.e"
