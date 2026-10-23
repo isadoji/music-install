@@ -1,0 +1,21 @@
+diff --git a/urqmd/src/output.f b/urqmd/src/output.f
+index f0e80ba..feba17b 100644
+--- a/urqmd/src/output.f
++++ b/urqmd/src/output.f
+@@ -1060,6 +1060,16 @@ c now read particle-output
+      @        ityp(i),iso3(i),charge(i),
+      @        lstcoll(i),ncoll(i),origin(i),
+      @        dectime(i),tform(i),xtotfac(i)
++c     seed the freeze-out coordinates with the creation point read from the
++c     input list (the iS3D particlization surface). scatter.f overwrites
++c     these for particles that undergo a real interaction inside the
++c     afterburner; without this, free-streaming particles keep frr*=0 from
++c     init.f/addpart.f and get written to the OSCAR97A output at the
++c     spacetime origin (0,0,0,0).
++         frr0(i)=r0(i)
++         frrx(i)=rx(i)
++         frry(i)=ry(i)
++         frrz(i)=rz(i)
+       if(abs(ityp(i)).le.maxbar)nbar=nbar+1
+  39   continue
+       nmes=npart-nbar

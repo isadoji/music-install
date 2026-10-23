@@ -1,0 +1,12 @@
+diff --git a/urqmd/uqmd.burner b/urqmd/uqmd.burner
+index 577ba31..7ef6fc6 100644
+--- a/urqmd/uqmd.burner
++++ b/urqmd/uqmd.burner
+@@ -14,7 +14,6 @@ f14
+ f15
+ f16
+ f18
+-f19
+ f20
+ f30
+ #  end of file

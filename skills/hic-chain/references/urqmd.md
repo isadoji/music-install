@@ -2,7 +2,7 @@
 
 Binarios en el cluster:
 - cascada: `/storage/software/urqmd/urqmd-3.4/urqmd.x86_64`
-- afterburner (osc2u + urqmd.e + tables.dat): `/storage/software/urqmd/urqmd_afterburner`
+- afterburner (osc2u + urqmd.e + tables.dat): `/storage/software/urqmd/urqmd_afterburner` (acaxees); instalar en otra máquina con `install_afterburner.sh` (parche frr*, Bug #2)
 - fuente local de referencia: `~/Software/UrQMD/urqmd-3.4/` (`input.f`, `output.f`, `anndec.f`)
 
 ## 1. Parámetro de impacto: `imp` vs `IMP`
