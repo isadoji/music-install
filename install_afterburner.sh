@@ -102,7 +102,10 @@ fi
 # El target de make es el propio urqmd.e: si existe, no recompila aunque
 # src/ haya cambiado. Tras parchar hay que borrarlo.
 [[ $PATCHED -eq 1 ]] && rm -f urqmd/urqmd.e osc2u/osc2u.e
-make -s
+# Los GNUmakefile usan FC=f77 (default de make). En máquinas sin el alias
+# f77 (p. ej. itzalan, RHEL) falla con `f77: No such file or directory`:
+# se compila con gfortran explícito, que es lo que f77 es en Debian/Ubuntu.
+make -s FC=gfortran
 [[ -x osc2u/osc2u.e && -x urqmd/urqmd.e ]] || { echo "ERROR: faltan ejecutables"; exit 1; }
 echo "  ✓ osc2u/osc2u.e  urqmd/urqmd.e"
 
