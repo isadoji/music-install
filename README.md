@@ -433,7 +433,7 @@ automáticos).
 
 | Síntoma                                                                                                | Causa                                                                                                                                                                 | Fix                                                                                                                                                     |
 | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CRAB3 aborta: `Increase NPHASEMAX in crab.cpp`                                                          | `crab.cpp`'s `#define NPHASEMAX 20000000` es un arreglo **estático de punteros** (`NBMAX=1`) que guarda TODOS los π+ de TODOS los eventos pooled del run; campañas grandes (~1M eventos) lo superan | `./install_crab3.sh` (este repo) aplica `patches/crab3_increase_nphasemax.patch` (sube la constante a `200000000`) automáticamente — al ser un arreglo de punteros, el costo real de memoria (BSS) crece solo con las entradas usadas, no con el tamaño declarado |
+| CRAB3 aborta: `Increase NPHASEMAX in crab.cpp`                                                          | `crab.cpp`'s `#define NPHASEMAX 20000000` es un arreglo **estático de punteros** (`NBMAX=1`) que guarda TODOS los π+ de TODOS los eventos pooled del run; campañas grandes (~1M eventos) lo superan | `./install_crab3.sh` (este repo) fija el commit `7e885f5` y sube la constante a `200000000` con un `sed` sobre cualquier valor (el upstream trae `5000`, no `20000000`: el viejo `patches/crab3_increase_nphasemax.patch` fallaba en instalación limpia, visto en itzalan 2026-10-23; además activa `MIXED_PAIRS_FOR_DENOM` y `NMAX_FOR_MIXING 200000` como en acaxees) — al ser un arreglo de punteros, el costo real de memoria (BSS) crece solo con las entradas usadas, no con el tamaño declarado |
 | `crab.e` segfault al arrancar en un directorio nuevo                                                    | escribe resultados vía `fopen()` sin checar que exista `results/`                                                                                                    | `mkdir -p results/` antes de correr `crab.e` (o parchar para crear el directorio si falta)                                                             |
 | Stack overflow / crash silencioso con `NMAX_FOR_MIXING` grande | `crab_main.cpp` declara los arreglos de `MIXED_PAIRS_FOR_DENOM` en la pila | `./install_crab3.sh` (este repo) aplica `patches/crab3_nmax_mixing_heap_fix.patch` — los mueve al heap |
 | `--mem` estático del job SLURM de CRAB3 se queda corto (OOM) o sobra por mucho                          | el multiplicity real (π+/evento) solo se conoce corriendo el afterburner; `#SBATCH --mem=` se fija estáticamente al hacer `sbatch`, no se puede calcular dentro del mismo script | insertar un job SLURM intermedio "autosize" (muestrea un shard real, proyecta el total, aplica margen) entre el afterburner y el job real de CRAB3/`be`; ver `slurm_*_crab3_autosize.sh` en `music/BiBi_cascade_*GeV/*/` |
@@ -461,12 +461,17 @@ cd music-install
 
 ./install_music.sh                 && export MUSIC_DIR=$HOME/Software/MUSIC
 ./apply_music_fixes.sh $MUSIC_DIR  # freeze_pseudo + read_in_parameters (§8.1)
+./apply_2dtexs.sh $MUSIC_DIR       # EOS 20 (2DTExS) vendorizada, recompila
 
 ./install_3dmcglauber.sh           && export GLAUBER_DIR=$HOME/Software/3dMCGlauber
-./install_urqmd.sh                 && export URQMD_DIR=$HOME/Software/urqmd-3.4
+./install_urqmd.sh                 && export URQMD_DIR=$HOME/Software/urqmd-3.4   # requiere ../urqmd-3.4.tar (§8.4)
 ./install_is3d.sh                  && export IS3D_DIR=$HOME/Software/iS3D
 ./install_crab3.sh                 && export CRAB3_DIR=$HOME/Software/crab3
+./install_afterburner.sh           && export URQMD_AB=$HOME/Software/urqmd_afterburner  # autotest URQMD_RSEED
 ```
+
+Todos aceptan el directorio de destino como primer argumento (p. ej.
+`/software/mexnica/MUSIC/<componente>` en itzalan) y son idempotentes.
 
 Cada `install_*.sh` descarga/clona la fuente correspondiente, aplica los
 parches necesarios de `patches/` (ver §8 para el detalle de cada bug) y

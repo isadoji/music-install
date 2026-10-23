@@ -3,9 +3,15 @@
 # fork del CRAB "Correlation After Burner" de Scott Pratt), con dos parches
 # ya aplicados (README §8.5):
 #
-#   - crab3_increase_nphasemax.patch: NPHASEMAX 20e6 -> 200e6 (arreglo
-#     estático de punteros que guarda TODOS los pi+ pooled del run;
-#     campañas grandes lo superan y crab.e aborta pidiendo aumentarlo).
+#   - NPHASEMAX -> 200e6 (arreglo estático de punteros que guarda TODOS
+#     los pi+ pooled del run; campañas grandes lo superan y crab.e aborta
+#     pidiendo aumentarlo). Se hace con sed, no con
+#     crab3_increase_nphasemax.patch: el upstream trae 5000 (no 20e6 como
+#     asumía el parche) y el patch fallaba en una instalación limpia
+#     (itzalan, 2026-10-23).
+#   - MIXED_PAIRS_FOR_DENOM activado y NMAX_FOR_MIXING 10000 -> 200000,
+#     igual que /storage/software/crab3 en acaxees (upstream lo trae
+#     comentado).
 #   - crab3_nmax_mixing_heap_fix.patch: mueve los arreglos de
 #     MIXED_PAIRS_FOR_DENOM de la pila al heap (evitan overflow de stack
 #     con NMAX_FOR_MIXING grande).
@@ -24,6 +30,7 @@ set -euo pipefail
 
 CRAB3_DIR="${1:-$HOME/Software/crab3}"
 CRAB3_REPO="https://github.com/chunshen1987/crab3.git"
+CRAB3_COMMIT="7e885f5"   # el de acaxees y doramilaje
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "================================================"
@@ -52,23 +59,26 @@ echo "  ✓ g++, git, patch presentes"
 echo ""
 echo "── Obteniendo código fuente ──"
 if [[ -d "$CRAB3_DIR/.git" ]]; then
-    echo "  Ya existe un clone en $CRAB3_DIR, actualizando..."
-    git -C "$CRAB3_DIR" pull --ff-only
+    echo "  Ya existe un clone en $CRAB3_DIR"
 else
     mkdir -p "$(dirname "$CRAB3_DIR")"
     git clone "$CRAB3_REPO" "$CRAB3_DIR"
 fi
+git -C "$CRAB3_DIR" checkout -q "$CRAB3_COMMIT"
 
 # ── 3. Parches ───────────────────────────────────────────────────────────────
 echo ""
 echo "── Aplicando parches ──"
 
-if grep -q "define NPHASEMAX 200000000" "$CRAB3_DIR/crab.cpp" 2>/dev/null; then
-    echo "  NPHASEMAX ya aumentado, se omite."
-else
-    patch "$CRAB3_DIR/crab.cpp" "$PROJECT_DIR/patches/crab3_increase_nphasemax.patch"
-    echo "  ✓ NPHASEMAX aumentado a 200000000"
-fi
+C="$CRAB3_DIR/crab.cpp"
+grep -qE '^#define NPHASEMAX [0-9]+' "$C" || { echo "ERROR: no encuentro '#define NPHASEMAX' en $C"; exit 1; }
+sed -i -E 's|^#define NPHASEMAX [0-9]+|#define NPHASEMAX 200000000|' "$C"
+sed -i -E 's|^/\* *#define MIXED_PAIRS_FOR_DENOM *\*/|#define MIXED_PAIRS_FOR_DENOM|' "$C"
+sed -i -E 's|^#define NMAX_FOR_MIXING [0-9]+|#define NMAX_FOR_MIXING 200000|' "$C"
+for d in "NPHASEMAX 200000000" "MIXED_PAIRS_FOR_DENOM" "NMAX_FOR_MIXING 200000"; do
+    grep -qx "#define $d" "$C" || { echo "ERROR: no quedó '#define $d' en $C"; exit 1; }
+done
+echo "  ✓ NPHASEMAX=200000000, MIXED_PAIRS_FOR_DENOM, NMAX_FOR_MIXING=200000"
 
 if grep -q "new double\[NMAX_FOR_MIXING\]" "$CRAB3_DIR/source_files/crab_main.cpp" 2>/dev/null; then
     echo "  Arreglos de mixing ya en heap, se omite."
